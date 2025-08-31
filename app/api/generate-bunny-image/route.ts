@@ -57,7 +57,12 @@ export async function POST(request: NextRequest) {
     // Generate cache key including base bunny name and scene
     const cacheKey = GeminiImageServiceClass.getCacheKey(equippedItems, selectedBaseBunny, selectedScene);
     const cacheFileName = `${cacheKey}.png`;
-    const cachePath = path.join(process.cwd(), 'public', 'generated-bunnies', cacheFileName);
+    
+    // Use different paths for development vs production
+    const isProduction = process.env.NODE_ENV === 'production';
+    const cachePath = isProduction 
+      ? path.join('/var/www/bunny-static/generated-bunnies', cacheFileName)
+      : path.join(process.cwd(), 'public', 'generated-bunnies', cacheFileName);
 
     // Check if cached version exists
     try {
