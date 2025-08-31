@@ -580,6 +580,165 @@ This should look like official character art for a mobile game - high quality, c
       : `bunny_gemini_${baseBunnyName}_${sceneId}`;
   }
 
+  // Generate cache key for bunny with items (without scene)
+  static getBunnyItemsCacheKey(equippedItems: EquippedItem[], baseBunnyFile: string = 'base-bunny-transparent.png'): string {
+    const sortedItems = equippedItems
+      .sort((a, b) => a.item_id.localeCompare(b.item_id))
+      .map(item => item.item_id)
+      .join(',');
+    const baseBunnyName = baseBunnyFile.replace('.png', '');
+    return sortedItems.length > 0 
+      ? `${baseBunnyName}_${sortedItems}`
+      : `${baseBunnyName}`;
+  }
+
+  // Generate cache key for final composite (bunny + scene)
+  static getFinalCacheKey(equippedItems: EquippedItem[], baseBunnyFile: string = 'base-bunny-transparent.png', sceneId: string = 'meadow'): string {
+    return this.getBunnyItemsCacheKey(equippedItems, baseBunnyFile);
+  }
+
+  // Generate bunny with items (transparent background)
+  async generateBunnyWithItems(equippedItems: EquippedItem[], baseBunnyFile: string = 'base-bunny-transparent.png'): Promise<{ imageData: Buffer; mimeType: string } | null> {
+    if (!this.genAI) {
+      throw new Error('Gemini API key not configured');
+    }
+
+    try {
+      const baseBunnyPath = path.join(process.cwd(), 'public', 'base-bunnies', baseBunnyFile);
+      const baseBunnyBase64 = await this.fileToBase64(baseBunnyPath);
+
+      // Build content parts with base bunny and item images
+      const contentParts: Array<{inlineData: {data: string, mimeType: string}} | {text: string}> = [
+        {
+          inlineData: {
+            data: baseBunnyBase64,
+            mimeType: 'image/png'
+          }
+        }
+      ];
+
+      // Add item images
+      for (const item of equippedItems) {
+        const itemBase64 = await this.urlToBase64(item.image_url);
+        contentParts.push({
+          inlineData: {
+            data: itemBase64,
+            mimeType: 'image/png'
+          }
+        });
+      }
+
+      // Create prompt for bunny with items (transparent background)
+      const prompt = this.createBunnyWithItemsPrompt(equippedItems);
+      contentParts.push({ text: prompt });
+
+      console.log('🟡 Generating bunny with items using Gemini 2.5 Flash Image Preview');
+      const model = this.genAI.getGenerativeModel({ model: 'gemini-2.5-flash-image-preview' });
+      const response = await model.generateContent(contentParts);
+
+      if (response.response.candidates?.[0]?.content?.parts) {
+        for (const part of response.response.candidates[0].content.parts) {
+          if (part.inlineData?.data && part.inlineData?.mimeType?.startsWith('image/')) {
+            const imageBuffer = Buffer.from(part.inlineData.data, 'base64');
+            console.log('🟡 Bunny with items generated successfully');
+            return { imageData: imageBuffer, mimeType: part.inlineData.mimeType };
+          }
+        }
+      }
+
+      console.log('🟡 No image found in response');
+      return null;
+
+    } catch (error) {
+      console.error('🔥 Error generating bunny with items:', error);
+      return null;
+    }
+  }
+
+  // Composite bunny onto scene
+  async compositeBunnyOntoScene(bunnyBuffer: Buffer, sceneId: string): Promise<{ imageData: Buffer; mimeType: string } | null> {
+    if (!this.genAI) {
+      throw new Error('Gemini API key not configured');
+    }
+
+    try {
+      // Load scene image
+      const scenePath = path.join(process.cwd(), 'public', 'scenes', `${sceneId}.png`);
+      const sceneBase64 = await this.fileToBase64(scenePath);
+      const bunnyBase64 = bunnyBuffer.toString('base64');
+
+      const contentParts: Array<{inlineData: {data: string, mimeType: string}} | {text: string}> = [
+        {
+          inlineData: {
+            data: bunnyBase64,
+            mimeType: 'image/png'
+          }
+        },
+        {
+          inlineData: {
+            data: sceneBase64,
+            mimeType: 'image/png'
+          }
+        }
+      ];
+
+      // Get scene description
+      const sceneData = this.getSceneData(sceneId);
+      const prompt = `Place the bunny from image 1 exactly as it is into the scene from image 2 (${sceneData.description}). Keep the bunny's exact appearance, style, colors, pose, and all accessories unchanged. Only replace the transparent background with the scene background. The bunny should be positioned naturally in the scene.`;
+      
+      contentParts.push({ text: prompt });
+
+      console.log('🟡 Compositing bunny onto scene using Gemini 2.5 Flash Image Preview');
+      const model = this.genAI.getGenerativeModel({ model: 'gemini-2.5-flash-image-preview' });
+      const response = await model.generateContent(contentParts);
+
+      if (response.response.candidates?.[0]?.content?.parts) {
+        for (const part of response.response.candidates[0].content.parts) {
+          if (part.inlineData?.data && part.inlineData?.mimeType?.startsWith('image/')) {
+            const imageBuffer = Buffer.from(part.inlineData.data, 'base64');
+            console.log('🟡 Scene composite generated successfully');
+            return { imageData: imageBuffer, mimeType: part.inlineData.mimeType };
+          }
+        }
+      }
+
+      console.log('🟡 No image found in composite response');
+      return null;
+
+    } catch (error) {
+      console.error('🔥 Error compositing bunny onto scene:', error);
+      return null;
+    }
+  }
+
+  // Create prompt for bunny with items (transparent background)
+  private createBunnyWithItemsPrompt(equippedItems: EquippedItem[]): string {
+    const baseBunnyDescription = `Create a cute cartoon bunny character with these EXACT characteristics:
+- Soft white/cream colored fur with subtle shading
+- Round, friendly black eyes with small white highlights  
+- Small pink triangular nose
+- Long upright ears with pink inner portions
+- Sitting upright in a gentle, relaxed pose
+- Small rounded body proportions, very kawaii/cute style
+- Clean vector-like illustration style with smooth colors
+- TRANSPARENT background (no background elements)`;
+
+    if (equippedItems.length === 0) {
+      return baseBunnyDescription;
+    }
+
+    const itemDescriptions = equippedItems.map((item, index) => {
+      const imageRef = `image ${index + 2}`; // +2 because image 1 is the base bunny
+      return `Add the ${item.name.toLowerCase()} from ${imageRef} to the bunny's ${item.slot.replace('_', ' ')}`;
+    }).join(', and ');
+
+    return `${baseBunnyDescription}
+
+Equipment to add: ${itemDescriptions}.
+
+Keep the exact same pixel art style. Use a completely transparent background.`;
+  }
+
   // Generate scene backgrounds (one-time setup)
   async generateSceneBackground(sceneId: string): Promise<{ imageData: Buffer; mimeType: string } | null> {
     if (!this.genAI) {
