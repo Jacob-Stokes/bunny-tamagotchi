@@ -6,6 +6,13 @@ import { GeminiImageService as GeminiImageServiceClass } from '../../lib/geminiI
 import { InventoryService } from '../../lib/inventoryService';
 import { supabase } from '../../lib/supabase';
 
+interface EquippedItem {
+  item_id: string;
+  slot: string;
+  image_url: string;
+  name: string;
+}
+
 export async function POST(request: NextRequest) {
   try {
     let bunnyId, equippedItems;
@@ -71,7 +78,7 @@ export async function POST(request: NextRequest) {
 
     // Generate new bunny image with Gemini
     try {
-      console.log('🔥 Generating bunny image with Gemini:', equippedItems.map((item) => item.name));
+      console.log('🔥 Generating bunny image with Gemini:', equippedItems.map((item: EquippedItem) => item.name));
       
       // Use two-step generation with explicit scene placement
       const geminiResult = await GeminiImageService.generateBunnyWithItemsTwoStep(equippedItems, selectedBaseBunny, selectedScene);
