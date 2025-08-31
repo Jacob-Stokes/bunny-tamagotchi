@@ -71,7 +71,7 @@ export async function POST(request: NextRequest) {
 
     // Generate new bunny image with Gemini
     try {
-      console.log('🔥 Generating bunny image with Gemini:', equippedItems.map(i => i.name));
+      console.log('🔥 Generating bunny image with Gemini:', equippedItems.map((item) => item.name));
       
       // Use two-step generation with explicit scene placement
       const geminiResult = await GeminiImageService.generateBunnyWithItemsTwoStep(equippedItems, selectedBaseBunny, selectedScene);
