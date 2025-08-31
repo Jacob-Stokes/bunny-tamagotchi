@@ -6,11 +6,21 @@ import { useAuth } from './context/AuthContext';
 import AuthModal from './components/AuthModal';
 import InventoryDebug from './components/InventoryDebug';
 import AdminPanel from './components/AdminPanel';
+import AnimatedBunny from './components/BlinkingBunny';
+import AnimationDebugPanel from './components/AnimationDebugPanel';
 
 export default function Home() {
   const [showAuthModal, setShowAuthModal] = useState(false);
+  const [debugTrigger, setDebugTrigger] = useState<string | null>(null);
   const { state, loading, performAction, getStatPercentage, getStatEmoji, bunnyImageUrl, regenerateBunnyImage, imageGenerating } = useBunny();
   const { user, signOut, signInAsGuest } = useAuth();
+
+  const handleTriggerAnimation = (animationType: string) => {
+    console.log('🎮 Page: Triggering animation:', animationType);
+    const uniqueTrigger = `${animationType}-${Date.now()}`;
+    console.log('🎮 Page: Setting debugTrigger to:', uniqueTrigger);
+    setDebugTrigger(uniqueTrigger);
+  };
   return (
     <main className="max-w-sm mx-auto p-4 safe-area min-h-screen flex flex-col">
       <div className="flex justify-between items-center py-2">
@@ -72,11 +82,12 @@ export default function Home() {
       ) : (
         <div className="flex-1 flex flex-col justify-start space-y-6">
           <div className="w-full flex flex-col items-center">
-            <div className="w-full aspect-square max-w-sm relative">
-              <img 
-                src={bunnyImageUrl} 
+            <div className="w-full aspect-square max-w-sm relative overflow-hidden rounded-3xl">
+              <AnimatedBunny 
+                bunnyImageUrl={bunnyImageUrl}
                 alt="Bunny" 
-                className="w-full h-full object-cover rounded-3xl"
+                className="w-full h-full object-contain"
+                debugTrigger={debugTrigger}
               />
               
               {/* Stats overlay in corners */}
@@ -146,6 +157,8 @@ export default function Home() {
                 🧼 Clean
               </button>
             </div>
+            
+            <AnimationDebugPanel onTriggerAnimation={handleTriggerAnimation} />
           </div>
         </div>
       )}

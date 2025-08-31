@@ -141,6 +141,7 @@ export function BunnyProvider({ children }: { children: React.ReactNode }) {
         }
       }
       setLoading(false);
+      setCurrentEquipment(''); // Reset equipment signature on user change
       return;
     }
 
@@ -179,6 +180,7 @@ export function BunnyProvider({ children }: { children: React.ReactNode }) {
       }
     } finally {
       setLoading(false);
+      setCurrentEquipment(''); // Reset equipment signature after loading bunny data
     }
   };
 
@@ -190,115 +192,85 @@ export function BunnyProvider({ children }: { children: React.ReactNode }) {
     }
   }, [state, user]);
 
-  // Set initial bunny image when bunny loads
+  // Track current equipment for change detection
+  const [currentEquipment, setCurrentEquipment] = useState<string>('');
+  const [isGenerating, setIsGenerating] = useState(false);
+
+  // Simplified bunny image loading - determine what should be shown and generate if needed
   useEffect(() => {
-    const loadInitialImage = async () => {
-      if (!loading && state.id) {
-        try {
-          // Get equipped items and check for cached generated image
-          const { InventoryService } = await import('../lib/inventoryService');
-          const inventoryData = await InventoryService.getBunnyFullInventory(state.id);
-          const equippedItems = Object.values(inventoryData.equipment).map(item => ({
+    if (loading || !state.id || isGenerating) return;
+
+    const updateBunnyImage = async () => {
+      try {
+        // Get current equipped items
+        const { InventoryService } = await import('../lib/inventoryService');
+        const inventoryData = await InventoryService.getBunnyFullInventory(state.id);
+        const equippedItems = Object.values(inventoryData.equipment)
+          .map(item => ({
             item_id: item.item_id,
             slot: item.slot,
             image_url: item.item?.image_url || '',
             name: item.item?.name || 'Unknown Item'
-          })).filter(item => item.image_url);
+          }))
+          .filter(item => item.image_url);
 
-          if (equippedItems.length > 0) {
-            // Generate cache key to check for existing generated image (including base bunny name and scene)
-            const selectedBaseBunny = localStorage.getItem('selected-base-bunny') || 'base-bunny-transparent.png';
-            const selectedScene = localStorage.getItem('selected-scene') || 'meadow';
-            const baseBunnyName = selectedBaseBunny.replace('.png', '');
-            const sortedItems = equippedItems
-              .sort((a, b) => a.item_id.localeCompare(b.item_id))
-              .map(item => item.item_id)
-              .join(',');
-            const cacheKey = `bunny_gemini_${baseBunnyName}_${selectedScene}_${sortedItems}`;
-            const cachedImageUrl = `/generated-bunnies/${cacheKey}.png`;
-            
-            // Check if cached generated image exists
-            try {
-              const response = await fetch(cachedImageUrl, { method: 'HEAD' });
-              if (response.ok) {
-                console.log('Loading existing generated bunny:', cachedImageUrl);
-                setBunnyImageUrl(cachedImageUrl);
-                return;
-              }
-            } catch {
-              // No cached image, fall through to base bunny
-            }
-          }
-          
-          // No equipped items or no cached image, use base bunny
-          setBunnyImageUrl(getBaseBunnyPath());
-        } catch (error) {
-          console.error('Error loading bunny image:', error);
-          setBunnyImageUrl(getBaseBunnyPath());
+        // Create equipment signature for change detection
+        const equipmentSignature = equippedItems
+          .sort((a, b) => a.item_id.localeCompare(b.item_id))
+          .map(item => item.item_id)
+          .join(',');
+
+        // Get current settings
+        const selectedBaseBunny = localStorage.getItem('selected-base-bunny') || 'base-bunny-transparent.png';
+        const selectedScene = localStorage.getItem('selected-scene') || 'meadow';
+        const fullSignature = `${selectedBaseBunny}|${selectedScene}|${equipmentSignature}`;
+
+        // If equipment hasn't changed, don't do anything
+        if (currentEquipment === fullSignature && bunnyImageUrl) {
+          return;
         }
-      } else if (!loading) {
+
+        console.log('🔄 Equipment changed, updating bunny image');
+        console.log('Previous:', currentEquipment);
+        console.log('Current:', fullSignature);
+
+        setCurrentEquipment(fullSignature);
+
+        // If no items equipped, use base bunny
+        if (equippedItems.length === 0) {
+          console.log('📷 No items equipped, using base bunny');
+          setBunnyImageUrl(getBaseBunnyPath());
+          return;
+        }
+
+        // Generate bunny image with items
+        console.log('🎨 Generating bunny with', equippedItems.length, 'items');
+        await generateBunnyWithCurrentItems();
+
+      } catch (error) {
+        console.error('Error updating bunny image:', error);
         setBunnyImageUrl(getBaseBunnyPath());
       }
     };
 
-    loadInitialImage();
-  }, [state.id, loading]);
+    updateBunnyImage();
+  }, [state.id, state.lastUpdated, loading, currentEquipment, isGenerating, bunnyImageUrl]);
 
-  // Also check for cached images when equipment might have changed
+  // Listen for force regeneration events
   useEffect(() => {
-    if (!loading && state.id) {
-      loadInitialImage();
-    }
-  }, [state.lastUpdated]); // Trigger when bunny state updates
-
-  const loadInitialImage = async () => {
-    if (!loading && state.id) {
-      try {
-        // Get equipped items and check for cached generated image
-        const { InventoryService } = await import('../lib/inventoryService');
-        const inventoryData = await InventoryService.getBunnyFullInventory(state.id);
-        const equippedItems = Object.values(inventoryData.equipment).map(item => ({
-          item_id: item.item_id,
-          slot: item.slot,
-          image_url: item.item?.image_url || '',
-          name: item.item?.name || 'Unknown Item'
-        })).filter(item => item.image_url);
-
-        if (equippedItems.length > 0) {
-          // Generate cache key to check for existing generated image (including base bunny name and scene)
-          const selectedBaseBunny = localStorage.getItem('selected-base-bunny') || 'base-bunny-transparent.png';
-          const selectedScene = localStorage.getItem('selected-scene') || 'meadow';
-          const baseBunnyName = selectedBaseBunny.replace('.png', '');
-          const sortedItems = equippedItems
-            .sort((a, b) => a.item_id.localeCompare(b.item_id))
-            .map(item => item.item_id)
-            .join(',');
-          const cacheKey = `bunny_gemini_${baseBunnyName}_${selectedScene}_${sortedItems}`;
-          const cachedImageUrl = `/generated-bunnies/${cacheKey}.png`;
-          
-          // Check if cached generated image exists
-          try {
-            const response = await fetch(cachedImageUrl, { method: 'HEAD' });
-            if (response.ok) {
-              console.log('Loading existing generated bunny:', cachedImageUrl);
-              setBunnyImageUrl(cachedImageUrl);
-              return;
-            }
-          } catch {
-            // No cached image, fall through to base bunny
-          }
-        }
-        
-        // No equipped items or no cached image, use base bunny
-        setBunnyImageUrl(getBaseBunnyPath());
-      } catch (error) {
-        console.error('Error loading bunny image:', error);
-        setBunnyImageUrl(getBaseBunnyPath());
+    const handleForceRegenerate = () => {
+      console.log('🔄 Received force regenerate event');
+      if (!loading && state.id && !isGenerating) {
+        const event = setTimeout(async () => {
+          await generateBunnyWithCurrentItems();
+        }, 50);
+        return () => clearTimeout(event);
       }
-    } else if (!loading) {
-      setBunnyImageUrl(getBaseBunnyPath());
-    }
-  };
+    };
+
+    window.addEventListener('bunny-equipment-changed', handleForceRegenerate);
+    return () => window.removeEventListener('bunny-equipment-changed', handleForceRegenerate);
+  }, [state.id, loading, isGenerating]);
 
   const performAction = async (action: ActionType) => {
     const modifications = getActionEffects(action);
@@ -336,34 +308,34 @@ export function BunnyProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const regenerateBunnyImage = async () => {
-    console.log('regenerateBunnyImage called, state.id:', state.id, 'loading:', loading);
-    
-    if (!state.id) {
-      console.log('No bunny ID, using base image');
-      setBunnyImageUrl(getBaseBunnyPath());
+  // Generate bunny with current equipment
+  const generateBunnyWithCurrentItems = async () => {
+    if (isGenerating) {
+      console.log('🔄 Already generating, skipping');
       return;
     }
 
-    console.log('Generating bunny image for ID:', state.id);
+    setIsGenerating(true);
     setImageGenerating(true);
 
     try {
-      // Get equipped items from inventory service
+      // Get current equipped items
       const { InventoryService } = await import('../lib/inventoryService');
       const inventoryData = await InventoryService.getBunnyFullInventory(state.id);
-      const equippedItems = Object.values(inventoryData.equipment).map(item => ({
-        item_id: item.item_id,
-        slot: item.slot,
-        image_url: item.item?.image_url || '',
-        name: item.item?.name || 'Unknown Item'
-      })).filter(item => item.image_url);
-
-      console.log('Equipped items for generation:', equippedItems);
+      const equippedItems = Object.values(inventoryData.equipment)
+        .map(item => ({
+          item_id: item.item_id,
+          slot: item.slot,
+          image_url: item.item?.image_url || '',
+          name: item.item?.name || 'Unknown Item'
+        }))
+        .filter(item => item.image_url);
 
       const selectedBaseBunny = localStorage.getItem('selected-base-bunny') || 'base-bunny-transparent.png';
       const selectedScene = localStorage.getItem('selected-scene') || 'meadow';
       
+      console.log('🎨 Calling generation API with', equippedItems.length, 'items');
+
       const response = await fetch('/api/generate-bunny-image', {
         method: 'POST',
         headers: {
@@ -373,24 +345,50 @@ export function BunnyProvider({ children }: { children: React.ReactNode }) {
         },
         body: JSON.stringify({ 
           bunnyId: state.id,
-          equippedItems: equippedItems
+          equippedItems: equippedItems,
+          generateAnimation: true
         }),
       });
 
       if (!response.ok) {
-        throw new Error('Failed to generate bunny image');
+        throw new Error(`Generation failed: ${response.status}`);
       }
 
       const result = await response.json();
+      
+      console.log('✅ Generation complete:', result.imageUrl);
       setBunnyImageUrl(result.imageUrl);
-      console.log('Updated bunny image:', result.imageUrl, result.cached ? '(cached)' : '(generated)');
+      
+      if (result.transparent?.applied) {
+        console.log('🎭 Background removed, bunny is now transparent');
+      }
+
     } catch (error) {
-      console.error('Error generating bunny image:', error);
-      // Fallback to base bunny image
+      console.error('🔥 Generation failed:', error);
       setBunnyImageUrl(getBaseBunnyPath());
     } finally {
+      setIsGenerating(false);
       setImageGenerating(false);
     }
+  };
+
+  // Force regenerate current bunny (for refresh button)
+  const regenerateBunnyImage = async () => {
+    console.log('🔄 Force regenerating bunny image');
+    
+    if (!state.id) {
+      setBunnyImageUrl(getBaseBunnyPath());
+      return;
+    }
+
+    // Clear current equipment signature to force regeneration
+    setCurrentEquipment('');
+    
+    // This will trigger the useEffect to regenerate
+    setTimeout(() => {
+      const event = new CustomEvent('bunny-equipment-changed');
+      window.dispatchEvent(event);
+    }, 100);
   };
 
   const getStatPercentage = (stat: keyof BunnyStats): number => {

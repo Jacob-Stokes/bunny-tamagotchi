@@ -6,6 +6,7 @@ import { SceneService, Scene, CreateSceneData, UpdateSceneData } from '../lib/sc
 import { useAuth } from '../context/AuthContext';
 import { Item, SlotType, RarityType, ItemInsert } from '../types/inventory';
 import { supabase } from '../lib/supabase';
+import AdminOutfitPreview from './AdminOutfitPreview';
 
 export default function AdminPanel() {
   const [isOpen, setIsOpen] = useState(false);
@@ -33,6 +34,10 @@ export default function AdminPanel() {
     description: '',
     background_image_url: '',
   });
+  const [showGeneratedOutfits, setShowGeneratedOutfits] = useState(false);
+  const [generatedOutfits, setGeneratedOutfits] = useState<any[]>([]);
+  const [loadingOutfits, setLoadingOutfits] = useState(false);
+  const [regeneratingOutfit, setRegeneratingOutfit] = useState<string | null>(null);
 
   // Predefined scene options
   const sceneOptions = [
@@ -139,6 +144,7 @@ export default function AdminPanel() {
       loadCurrentBaseBunny();
       loadCurrentScene();
       loadScenes();
+      loadGeneratedOutfits();
     }
   }, [isOpen, isAdmin]);
 
@@ -317,6 +323,47 @@ export default function AdminPanel() {
     setEditingScene(null);
     setShowSceneForm(false);
     setSelectedSceneFile(null);
+  };
+
+  const loadGeneratedOutfits = async () => {
+    setLoadingOutfits(true);
+    try {
+      const response = await fetch('/api/generated-outfits');
+      if (response.ok) {
+        const data = await response.json();
+        setGeneratedOutfits(data.outfits || []);
+      }
+    } catch (error) {
+      console.error('Error loading generated outfits:', error);
+    } finally {
+      setLoadingOutfits(false);
+    }
+  };
+
+  const forceRegenerateOutfit = async (outfitKey: string) => {
+    setRegeneratingOutfit(outfitKey);
+    try {
+      const response = await fetch('/api/force-regenerate-outfit', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ outfitKey }),
+      });
+
+      if (response.ok) {
+        console.log('Outfit regenerated successfully');
+        // Reload the outfits list to get updated data
+        await loadGeneratedOutfits();
+      } else {
+        const error = await response.json();
+        console.error('Failed to regenerate outfit:', error);
+      }
+    } catch (error) {
+      console.error('Error regenerating outfit:', error);
+    } finally {
+      setRegeneratingOutfit(null);
+    }
   };
 
   const handleFormChange = (field: string, value: any) => {
@@ -533,34 +580,42 @@ export default function AdminPanel() {
         {!showAddForm ? (
           <div>
             {/* Navigation Tabs */}
-            <div className="mb-6 flex gap-4">
+            <div className="mb-6 flex gap-2 flex-wrap">
               <button
-                onClick={() => { setShowBaseBunnySection(false); setShowSceneSection(false); }}
-                className={`px-4 py-2 rounded-lg font-medium ${!showBaseBunnySection && !showSceneSection
+                onClick={() => { setShowBaseBunnySection(false); setShowSceneSection(false); setShowGeneratedOutfits(false); }}
+                className={`px-4 py-2 rounded-lg font-medium ${!showBaseBunnySection && !showSceneSection && !showGeneratedOutfits
                   ? 'bg-red-600 text-white' 
                   : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
               >
                 📦 Items Management
               </button>
               <button
-                onClick={() => { setShowBaseBunnySection(true); setShowSceneSection(false); }}
-                className={`px-4 py-2 rounded-lg font-medium ${showBaseBunnySection && !showSceneSection
+                onClick={() => { setShowBaseBunnySection(true); setShowSceneSection(false); setShowGeneratedOutfits(false); }}
+                className={`px-4 py-2 rounded-lg font-medium ${showBaseBunnySection && !showSceneSection && !showGeneratedOutfits
                   ? 'bg-red-600 text-white' 
                   : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
               >
                 🐰 Base Bunny Selection
               </button>
               <button
-                onClick={() => { setShowBaseBunnySection(false); setShowSceneSection(true); }}
-                className={`px-4 py-2 rounded-lg font-medium ${showSceneSection
+                onClick={() => { setShowBaseBunnySection(false); setShowSceneSection(true); setShowGeneratedOutfits(false); }}
+                className={`px-4 py-2 rounded-lg font-medium ${showSceneSection && !showGeneratedOutfits
                   ? 'bg-red-600 text-white' 
                   : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
               >
                 🌸 Scene Selection
               </button>
+              <button
+                onClick={() => { setShowBaseBunnySection(false); setShowSceneSection(false); setShowGeneratedOutfits(true); }}
+                className={`px-4 py-2 rounded-lg font-medium ${showGeneratedOutfits
+                  ? 'bg-red-600 text-white' 
+                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
+              >
+                🎨 Generated Outfits
+              </button>
             </div>
 
-            {!showBaseBunnySection && !showSceneSection ? (
+            {!showBaseBunnySection && !showSceneSection && !showGeneratedOutfits ? (
               <div>
                 {/* Add Item Button */}
                 <div className="mb-6">
@@ -570,6 +625,70 @@ export default function AdminPanel() {
                   >
                     ➕ Add New Item
                   </button>
+                </div>
+              </div>
+            ) : showGeneratedOutfits ? (
+              <div>
+                {/* Generated Outfits Section */}
+                <div className="mb-6">
+                  <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-lg font-semibold">Generated Outfit Cache ({generatedOutfits.length})</h3>
+                    <button
+                      onClick={loadGeneratedOutfits}
+                      disabled={loadingOutfits}
+                      className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                    >
+                      {loadingOutfits ? 'Loading...' : '🔄 Refresh'}
+                    </button>
+                  </div>
+                  
+                  {loadingOutfits ? (
+                    <div className="text-center py-8">Loading generated outfits...</div>
+                  ) : generatedOutfits.length === 0 ? (
+                    <div className="text-center py-8 text-gray-500">No generated outfits found</div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {generatedOutfits.map((outfit) => (
+                        <div key={outfit.key} className="border rounded-lg p-4 bg-gray-50">
+                          <div className="mb-3">
+                            <AdminOutfitPreview
+                              normalUrl={outfit.normalUrl}
+                              blinkUrl={outfit.blinkUrl}
+                              sceneNormalUrl={outfit.sceneNormalUrl}
+                              sceneBlinkUrl={outfit.sceneBlinkUrl}
+                              hasBlinkFrame={outfit.hasBlinkFrame}
+                              hasSceneComposition={outfit.hasSceneComposition}
+                              className="w-full h-48 object-cover rounded border"
+                              alt={`Outfit ${outfit.key}`}
+                            />
+                          </div>
+                          
+                          <div className="mb-3">
+                            <h4 className="font-medium text-sm mb-1">{outfit.baseBunny}</h4>
+                            <p className="text-xs text-gray-600 mb-2">
+                              {outfit.equippedItems?.length || 0} items • Scene: {outfit.scene}
+                            </p>
+                            {outfit.equippedItems && outfit.equippedItems.length > 0 && (
+                              <div className="text-xs text-gray-500">
+                                Items: {outfit.equippedItems.join(', ')}
+                              </div>
+                            )}
+                            <p className="text-xs text-gray-500 mt-2">
+                              Generated: {new Date(outfit.generatedAt).toLocaleString()}
+                            </p>
+                          </div>
+                          
+                          <button
+                            onClick={() => forceRegenerateOutfit(outfit.key)}
+                            disabled={regeneratingOutfit === outfit.key}
+                            className="w-full bg-red-600 text-white px-3 py-2 rounded text-sm hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {regeneratingOutfit === outfit.key ? '⏳ Regenerating...' : '🔥 Force Regen'}
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             ) : showBaseBunnySection ? (
@@ -786,7 +905,7 @@ export default function AdminPanel() {
             )}
 
             {/* Items List - only show when in items management section */}
-            {!showBaseBunnySection && !showSceneSection && (
+            {!showBaseBunnySection && !showSceneSection && !showGeneratedOutfits && (
               <>
                 {loading ? (
                   <div className="text-center py-8">Loading items...</div>
