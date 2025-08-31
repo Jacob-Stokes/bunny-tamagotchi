@@ -29,8 +29,20 @@ export async function POST(request: NextRequest) {
     console.log('🚀 Supabase instance available:', !!supabase);
     
     // Check if we have authentication context
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    let user = null;
+    let authError = null;
+    
+    if (supabase) {
+      const authResult = await supabase.auth.getUser();
+      user = authResult.data.user;
+      authError = authResult.error;
+    }
+    
     console.log('🚀 Current auth user:', user?.email || 'NONE', 'error:', authError?.message || 'none');
+    
+    if (!supabase) {
+      throw new Error('Supabase not configured');
+    }
     
     const { data: equipmentData, error: equipError } = await supabase
       .from('bunny_equipment')
