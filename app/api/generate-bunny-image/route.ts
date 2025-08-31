@@ -60,79 +60,73 @@ export async function POST(request: NextRequest) {
       ? '/var/www/bunny-static/generated-bunnies'
       : path.join(process.cwd(), 'public', 'generated-bunnies');
 
-    // Step 1: Generate or get cached bunny with items (transparent background)
-    const bunnyItemsKey = GeminiImageServiceClass.getBunnyItemsCacheKey(equippedItems, selectedBaseBunny);
-    const bunnyItemsFileName = `bunny_with_items_${bunnyItemsKey}.png`;
-    const bunnyItemsPath = path.join(baseDir, bunnyItemsFileName);
+    // Generate bunny folder name and file paths
+    const bunnyFolderKey = GeminiImageServiceClass.getBunnyItemsCacheKey(equippedItems, selectedBaseBunny);
+    const bunnyFolderName = bunnyFolderKey;
+    const bunnyFolderPath = path.join(baseDir, bunnyFolderName);
+    const bunnyImagePath = path.join(bunnyFolderPath, 'normal.png');
+    const bunnyMetadataPath = path.join(bunnyFolderPath, 'metadata.json');
 
-    // Step 2: Generate final composite cache key
-    const finalCacheKey = GeminiImageServiceClass.getFinalCacheKey(equippedItems, selectedBaseBunny, selectedScene);
-    const finalCacheFileName = `bunny_in_scene_${selectedScene}_${finalCacheKey}.png`;
-    const finalCachePath = path.join(baseDir, finalCacheFileName);
-
-    // Check if final composite exists
+    // Check if bunny already exists
     try {
-      await require('fs/promises').access(finalCachePath);
-      console.log('🎯 Final composite cache hit:', finalCacheFileName);
+      await require('fs/promises').access(bunnyImagePath);
+      console.log('🎯 Bunny cache hit:', `${bunnyFolderName}/normal.png`);
       return NextResponse.json({ 
         success: true, 
-        imageUrl: `/generated-bunnies/${finalCacheFileName}`,
+        imageUrl: `/generated-bunnies/${bunnyFolderName}/normal.png`,
         cached: true,
-        method: 'final_cache_hit'
+        method: 'bunny_cache_hit'
       });
     } catch {
-      // Need to generate final composite
+      // Need to generate bunny
     }
 
     // Create directory if it doesn't exist
     await require('fs/promises').mkdir(baseDir, { recursive: true });
 
-    // Step 1: Check if bunny with items exists, if not generate it
-    let bunnyWithItemsBuffer: Buffer;
     try {
-      await require('fs/promises').access(bunnyItemsPath);
-      console.log('🎯 Bunny+items cache hit:', bunnyItemsFileName);
-      bunnyWithItemsBuffer = await require('fs/promises').readFile(bunnyItemsPath);
-    } catch {
-      // Generate bunny with items (transparent background)
-      console.log('🔥 Generating bunny with items:', equippedItems.map((item: EquippedItem) => item.name));
+      // Create bunny folder
+      await require('fs/promises').mkdir(bunnyFolderPath, { recursive: true });
+
+      // Generate bunny with items (transparent background only)
+      console.log('🔥 Generating clean bunny with items:', equippedItems.map((item: EquippedItem) => item.name));
       const bunnyResult = await GeminiImageService.generateBunnyWithItems(equippedItems, selectedBaseBunny);
       
       if (!bunnyResult) {
         throw new Error('Failed to generate bunny with items');
       }
       
-      // Save bunny with items
-      await writeFile(bunnyItemsPath, bunnyResult.imageData);
-      console.log('💾 Saved bunny+items:', bunnyItemsFileName);
-      bunnyWithItemsBuffer = bunnyResult.imageData;
-    }
+      // Save bunny image
+      await writeFile(bunnyImagePath, bunnyResult.imageData);
+      console.log('💾 Saved bunny image:', `${bunnyFolderName}/normal.png`);
 
-    // Step 2: Composite bunny onto scene
-    console.log('🎨 Compositing bunny onto scene:', selectedScene);
-    const compositeResult = await GeminiImageService.compositeBunnyOntoScene(bunnyWithItemsBuffer, selectedScene);
-    
-    if (!compositeResult) {
-      throw new Error('Failed to composite bunny onto scene');
-    }
-    
-    // Save final composite
-    await writeFile(finalCachePath, compositeResult.imageData);
-    console.log('💾 Saved final composite:', finalCacheFileName);
+      // Save metadata
+      const metadata = {
+        generatedAt: new Date().toISOString(),
+        baseBunny: selectedBaseBunny,
+        equippedItems: equippedItems.map(item => ({
+          item_id: item.item_id,
+          slot: item.slot,
+          name: item.name
+        })),
+        version: '1.0'
+      };
+      await writeFile(bunnyMetadataPath, JSON.stringify(metadata, null, 2));
+      console.log('💾 Saved metadata:', `${bunnyFolderName}/metadata.json`);
 
-    return NextResponse.json({ 
-      success: true, 
-      imageUrl: `/generated-bunnies/${finalCacheFileName}`,
-      cached: false,
-      equippedItems: equippedItems.length,
-      method: 'two_step_generation'
-    });
+      return NextResponse.json({ 
+        success: true, 
+        imageUrl: `/generated-bunnies/${bunnyFolderName}/normal.png`,
+        cached: false,
+        equippedItems: equippedItems.length,
+        method: 'clean_bunny_generation',
+        folderName: bunnyFolderName
+      });
 
     } catch (geminiError) {
       console.error('🔥 Gemini image generation failed:', geminiError);
       
       // Fallback to base bunny
-      const selectedBaseBunny = request.headers.get('x-base-bunny') || 'base-bunny-transparent.png';
       return NextResponse.json({ 
         success: true, 
         imageUrl: `/base-bunnies/${selectedBaseBunny}`,

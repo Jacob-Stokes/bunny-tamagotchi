@@ -683,8 +683,8 @@ This should look like official character art for a mobile game - high quality, c
       ];
 
       // Get scene description
-      const sceneData = this.getSceneData(sceneId);
-      const prompt = `Place the bunny from image 1 exactly as it is into the scene from image 2 (${sceneData.description}). Keep the bunny's exact appearance, style, colors, pose, and all accessories unchanged. Only replace the transparent background with the scene background. The bunny should be positioned naturally in the scene.`;
+      const sceneDescription = this.getSceneDescription(sceneId);
+      const prompt = `Place the bunny from image 1 exactly as it is into the scene from image 2 (${sceneDescription}). Keep the bunny's exact appearance, style, colors, pose, and all accessories unchanged. Only replace the transparent background with the scene background. The bunny should be positioned naturally in the scene.`;
       
       contentParts.push({ text: prompt });
 
