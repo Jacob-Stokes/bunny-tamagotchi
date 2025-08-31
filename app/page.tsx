@@ -41,7 +41,7 @@ export default function Home() {
               Welcome to Bunny Tamagotchi! 🐰
             </h2>
             <p className="text-purple-600 mb-6">
-              Sign in to save your bunny's progress across devices, or continue as a guest.
+              Sign in to save your bunny progress across devices, or continue as a guest.
             </p>
             <div className="space-y-3">
               <button
