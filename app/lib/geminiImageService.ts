@@ -329,7 +329,7 @@ This should look like official character art for a mobile game - high quality, c
       console.log('🟡 Scene placement prompt:', scenePlacementPrompt);
       console.log('🟡 Scene placement images:', sceneBase64 ? 'bunny + scene' : 'bunny only');
       
-      scenePlacementParts.push({ text: scenePlacementPrompt });
+      scenePlacementParts.push(scenePlacementPrompt);
 
       const model = this.genAI.getGenerativeModel({ model: 'gemini-2.5-flash-image-preview' });
       const scenePlacementResponse = await model.generateContent(scenePlacementParts);
