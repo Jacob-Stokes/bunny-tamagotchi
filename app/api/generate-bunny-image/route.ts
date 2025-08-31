@@ -120,7 +120,7 @@ export async function POST(request: NextRequest) {
           success: true, 
           imageUrl: '/base-bunny-transparent.png',
           cached: false,
-          error: `Gemini test failed: ${testError.message}`
+          error: `Gemini test failed: ${testError instanceof Error ? testError.message : String(testError)}`
         });
       }
     }
