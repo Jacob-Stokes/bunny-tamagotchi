@@ -27,6 +27,11 @@ export interface UpdateSceneData {
 export class SceneService {
   // Get all active scenes
   static async getAllScenes(): Promise<Scene[]> {
+    if (!supabase) {
+      console.warn('Supabase not configured');
+      return [];
+    }
+    
     const { data, error } = await supabase
       .from('scenes')
       .select('*')
@@ -43,6 +48,11 @@ export class SceneService {
 
   // Get scene by ID
   static async getScene(id: string): Promise<Scene | null> {
+    if (!supabase) {
+      console.warn('Supabase not configured');
+      return null;
+    }
+    
     const { data, error } = await supabase
       .from('scenes')
       .select('*')
@@ -62,6 +72,11 @@ export class SceneService {
 
   // Create new scene
   static async createScene(sceneData: CreateSceneData): Promise<Scene> {
+    if (!supabase) {
+      console.warn('Supabase not configured');
+      throw new Error('Supabase not configured');
+    }
+    
     const { data, error } = await supabase
       .from('scenes')
       .insert([sceneData])
@@ -78,6 +93,11 @@ export class SceneService {
 
   // Update scene
   static async updateScene(id: string, updates: UpdateSceneData): Promise<Scene> {
+    if (!supabase) {
+      console.warn('Supabase not configured');
+      throw new Error('Supabase not configured');
+    }
+    
     const { data, error } = await supabase
       .from('scenes')
       .update({ ...updates, updated_at: new Date().toISOString() })
@@ -95,6 +115,11 @@ export class SceneService {
 
   // Delete scene (soft delete by setting is_active to false)
   static async deleteScene(id: string): Promise<void> {
+    if (!supabase) {
+      console.warn('Supabase not configured');
+      return;
+    }
+    
     const { error } = await supabase
       .from('scenes')
       .update({ is_active: false, updated_at: new Date().toISOString() })
@@ -108,6 +133,11 @@ export class SceneService {
 
   // Hard delete scene (permanent)
   static async hardDeleteScene(id: string): Promise<void> {
+    if (!supabase) {
+      console.warn('Supabase not configured');
+      return;
+    }
+    
     const { error } = await supabase
       .from('scenes')
       .delete()

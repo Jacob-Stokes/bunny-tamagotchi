@@ -1,3 +1,4 @@
+
 # Bunny Tamagotchi 🐰
 
 A cute virtual bunny companion built as a mobile-first Progressive Web App (PWA) using Next.js, React, TypeScript, and Tailwind CSS.
