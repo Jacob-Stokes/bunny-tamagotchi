@@ -304,7 +304,7 @@ This should look like official character art for a mobile game - high quality, c
         }
       }
 
-      const scenePlacementParts = [
+      const scenePlacementParts: Array<{inlineData: {data: string, mimeType: string}} | {text: string}> = [
         {
           inlineData: {
             data: bunnyWithItemsResult.imageData.toString('base64'),
@@ -329,7 +329,7 @@ This should look like official character art for a mobile game - high quality, c
       console.log('🟡 Scene placement prompt:', scenePlacementPrompt);
       console.log('🟡 Scene placement images:', sceneBase64 ? 'bunny + scene' : 'bunny only');
       
-      scenePlacementParts.push(scenePlacementPrompt);
+      scenePlacementParts.push({ text: scenePlacementPrompt });
 
       const model = this.genAI.getGenerativeModel({ model: 'gemini-2.5-flash-image-preview' });
       const scenePlacementResponse = await model.generateContent(scenePlacementParts);
