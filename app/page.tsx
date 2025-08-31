@@ -9,7 +9,7 @@ import AdminPanel from './components/AdminPanel';
 
 export default function Home() {
   const [showAuthModal, setShowAuthModal] = useState(false);
-  const { state, loading, performAction, getStatPercentage, getStatEmoji, bunnyImageUrl, regenerateBunnyImage } = useBunny();
+  const { state, loading, performAction, getStatPercentage, getStatEmoji, bunnyImageUrl, regenerateBunnyImage, imageGenerating } = useBunny();
   const { user, signOut, signInAsGuest } = useAuth();
   return (
     <main className="max-w-sm mx-auto p-4 safe-area min-h-screen flex flex-col">
@@ -78,26 +78,43 @@ export default function Home() {
                 alt="Bunny" 
                 className="w-full h-full object-cover rounded-3xl"
               />
+              
+              {/* Stats overlay in corners */}
+              <div className="absolute top-3 left-3 pixel-font text-sm text-white bg-black/70 rounded-lg px-2 py-1">
+                {getStatEmoji('connection')} {getStatPercentage('connection')}
+              </div>
+              <div className="absolute top-3 right-3 pixel-font text-sm text-white bg-black/70 rounded-lg px-2 py-1">
+                {getStatEmoji('stimulation')} {getStatPercentage('stimulation')}
+              </div>
+              <div className="absolute bottom-3 left-3 pixel-font text-sm text-white bg-black/70 rounded-lg px-2 py-1">
+                {getStatEmoji('comfort')} {getStatPercentage('comfort')}
+              </div>
+              <div className="absolute bottom-3 right-3 pixel-font text-sm text-white bg-black/70 rounded-lg px-2 py-1">
+                {getStatEmoji('energy')} {getStatPercentage('energy')}
+              </div>
+
+              {imageGenerating && (
+                <div className="absolute inset-0 bg-black/50 rounded-3xl flex items-center justify-center">
+                  <div className="text-center text-white">
+                    <div className="text-4xl mb-2 animate-bounce">🎨</div>
+                    <p className="text-sm font-medium">Generating...</p>
+                  </div>
+                </div>
+              )}
             </div>
             <button 
               onClick={() => regenerateBunnyImage()}
-              className="mt-4 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors text-sm"
+              disabled={imageGenerating}
+              className={`mt-4 px-4 py-2 rounded-lg transition-colors text-sm ${
+                imageGenerating 
+                  ? 'bg-gray-400 text-gray-600 cursor-not-allowed' 
+                  : 'bg-blue-600 text-white hover:bg-blue-700'
+              }`}
             >
-              🔄 Refresh Bunny
+              {imageGenerating ? '⏳ Generating...' : '🔄 Refresh Bunny'}
             </button>
           </div>
 
-          <div className="bg-white/20 backdrop-blur-sm rounded-2xl p-4">
-            <h2 className="text-lg font-semibold text-purple-700 mb-3 text-center">
-              Stats
-            </h2>
-            <div className="space-y-2">
-              <p className="text-gray-700">{getStatEmoji('connection')} Connection: {getStatPercentage('connection')}/100</p>
-              <p className="text-gray-700">{getStatEmoji('stimulation')} Stimulation: {getStatPercentage('stimulation')}/100</p>
-              <p className="text-gray-700">{getStatEmoji('comfort')} Comfort: {getStatPercentage('comfort')}/100</p>
-              <p className="text-gray-700">{getStatEmoji('energy')} Energy: {getStatPercentage('energy')}/100</p>
-            </div>
-          </div>
 
           <div className="bg-white/20 backdrop-blur-sm rounded-2xl p-4">
             <h2 className="text-lg font-semibold text-purple-700 mb-3 text-center">

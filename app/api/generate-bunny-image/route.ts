@@ -8,126 +8,47 @@ import { supabase } from '../../lib/supabase';
 
 export async function POST(request: NextRequest) {
   try {
-    let bunnyId;
+    let bunnyId, equippedItems;
     
     try {
       const body = await request.json();
       bunnyId = body.bunnyId;
+      equippedItems = body.equippedItems || [];
     } catch (jsonError) {
       console.error('JSON parse error:', jsonError);
       return NextResponse.json({ error: 'Invalid JSON in request' }, { status: 400 });
     }
 
     console.log('Generate bunny image request for bunnyId:', bunnyId);
+    console.log('Equipped items received:', equippedItems);
 
     if (!bunnyId) {
       console.log('No bunnyId provided');
       return NextResponse.json({ error: 'Missing bunnyId' }, { status: 400 });
     }
 
-    // BYPASS INVENTORY SERVICE - Direct database query
-    console.log('🚀 Using DIRECT database query to find equipment...');
-    console.log('🚀 Supabase instance available:', !!supabase);
-    
-    // Check if we have authentication context
-    let user = null;
-    let authError = null;
-    
-    if (supabase) {
-      const authResult = await supabase.auth.getUser();
-      user = authResult.data.user;
-      authError = authResult.error;
-    }
-    
-    console.log('🚀 Current auth user:', user?.email || 'NONE', 'error:', authError?.message || 'none');
-    
-    if (!supabase) {
-      throw new Error('Supabase not configured');
-    }
-    
-    const { data: equipmentData, error: equipError } = await supabase
-      .from('bunny_equipment')
-      .select(`
-        *,
-        item:items(*)
-      `)
-      .eq('bunny_id', bunnyId);
+    // Get selected base bunny from request or use default
+    const selectedBaseBunny = request.headers.get('x-base-bunny') || 'base-bunny-transparent.png';
 
-    if (equipError) {
-      console.error('🚀 Equipment query error:', equipError);
-      throw equipError;
-    }
-
-    console.log('🚀 Direct equipment query found:', equipmentData?.length || 0, 'items');
-
-    // Extract equipped items with image URLs
-    const allEquipped = (equipmentData || [])
-      .filter(equipment => equipment && equipment.item)
-      .map(equipment => ({
-        item_id: equipment.item_id,
-        slot: equipment.item!.slot,
-        image_url: equipment.item!.image_url || '',
-        name: equipment.item!.name
-      }));
-    
-    const equippedItems = allEquipped.filter(item => item.image_url);
-    
-    console.log('🚀 All equipped items:', allEquipped);
-    console.log('🚀 Items with images:', equippedItems);
-
-    // TEMPORARY TEST: Force Gemini generation even with no items
+    // If no items equipped, return base bunny
     if (equippedItems.length === 0) {
-      console.log('🔥 TESTING GEMINI: No equipped items found, but testing Gemini anyway...');
-      
-      // Create fake red beanie item for testing
-      const testItems = [{
-        item_id: 'red_beanie',
-        slot: 'head',
-        image_url: '/items/red_beanie.png',
-        name: 'Cozy Red Beanie'
-      }];
-      
-      try {
-        console.log('🔥 Calling Gemini to generate test bunny...');
-        const geminiResult = await GeminiImageService.generateBunnyWithItems(testItems);
-        
-        if (!geminiResult) {
-          console.log('🔥 Gemini returned no data');
-          return NextResponse.json({ 
-            success: true, 
-            imageUrl: '/base-bunny-transparent.png',
-            cached: false,
-            error: 'Gemini returned no data'
-          });
-        }
-        
-        // Save the generated image
-        const testCachePath = path.join(process.cwd(), 'public', 'generated-bunnies', 'test-gemini-bunny.png');
-        await require('fs/promises').mkdir(path.dirname(testCachePath), { recursive: true });
-        await writeFile(testCachePath, geminiResult.imageData);
-        
-        console.log('🔥 SUCCESS: Gemini generated test image!');
-        
-        return NextResponse.json({ 
-          success: true, 
-          imageUrl: '/generated-bunnies/test-gemini-bunny.png',
-          cached: false,
-          method: 'gemini-test'
-        });
-        
-      } catch (testError) {
-        console.error('🔥 GEMINI TEST FAILED:', testError);
-        return NextResponse.json({ 
-          success: true, 
-          imageUrl: '/base-bunny-transparent.png',
-          cached: false,
-          error: `Gemini test failed: ${testError instanceof Error ? testError.message : String(testError)}`
-        });
-      }
+      console.log('No equipped items found, returning base bunny');
+      return NextResponse.json({ 
+        success: true, 
+        imageUrl: `/base-bunnies/${selectedBaseBunny}`,
+        cached: true,
+        equippedItems: 0,
+        method: 'base'
+      });
     }
 
-    // Generate cache key
-    const cacheKey = GeminiImageServiceClass.getCacheKey(equippedItems);
+    // Get selected scene
+    const selectedScene = request.headers.get('x-scene') || 'meadow';
+    console.log('🔥 Using base bunny:', selectedBaseBunny);
+    console.log('🔥 Using scene:', selectedScene);
+
+    // Generate cache key including base bunny name and scene
+    const cacheKey = GeminiImageServiceClass.getCacheKey(equippedItems, selectedBaseBunny, selectedScene);
     const cacheFileName = `${cacheKey}.png`;
     const cachePath = path.join(process.cwd(), 'public', 'generated-bunnies', cacheFileName);
 
@@ -152,8 +73,8 @@ export async function POST(request: NextRequest) {
     try {
       console.log('🔥 Generating bunny image with Gemini:', equippedItems.map(i => i.name));
       
-      // Use Gemini to generate bunny with equipped items
-      const geminiResult = await GeminiImageService.generateBunnyWithItems(equippedItems);
+      // Use two-step generation with explicit scene placement
+      const geminiResult = await GeminiImageService.generateBunnyWithItemsTwoStep(equippedItems, selectedBaseBunny, selectedScene);
       
       if (!geminiResult) {
         throw new Error('Gemini did not return image data');
@@ -176,9 +97,10 @@ export async function POST(request: NextRequest) {
       console.error('🔥 Gemini image generation failed:', geminiError);
       
       // Fallback to base bunny
+      const selectedBaseBunny = request.headers.get('x-base-bunny') || 'base-bunny-transparent.png';
       return NextResponse.json({ 
         success: true, 
-        imageUrl: '/base-bunny-transparent.png',
+        imageUrl: `/base-bunnies/${selectedBaseBunny}`,
         cached: false,
         error: 'Generation failed, using base bunny'
       });

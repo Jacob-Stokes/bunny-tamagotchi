@@ -9,6 +9,7 @@ interface BunnyContextType {
   state: BunnyState;
   loading: boolean;
   bunnyImageUrl: string;
+  imageGenerating: boolean;
   performAction: (action: ActionType) => Promise<void>;
   getStatPercentage: (stat: keyof BunnyStats) => number;
   getStatEmoji: (stat: keyof BunnyStats) => string;
@@ -115,7 +116,14 @@ function getActionEffects(action: ActionType): StatModification {
 export function BunnyProvider({ children }: { children: React.ReactNode }) {
   const [state, dispatch] = useReducer(bunnyReducer, defaultState);
   const [loading, setLoading] = useState(true);
-  const [bunnyImageUrl, setBunnyImageUrl] = useState('/base-bunny-transparent.png');
+  const [bunnyImageUrl, setBunnyImageUrl] = useState('');
+  const [imageGenerating, setImageGenerating] = useState(false);
+
+  // Get selected base bunny path
+  const getBaseBunnyPath = () => {
+    const selected = localStorage.getItem('selected-base-bunny') || 'base-bunny-transparent.png';
+    return `/base-bunnies/${selected}`;
+  };
   const { user } = useAuth();
 
   // Load bunny data when user changes
@@ -182,12 +190,115 @@ export function BunnyProvider({ children }: { children: React.ReactNode }) {
     }
   }, [state, user]);
 
-  // Regenerate bunny image when bunny loads and has ID (for equipped items)
+  // Set initial bunny image when bunny loads
   useEffect(() => {
-    if (state.id && !loading) {
-      regenerateBunnyImage();
-    }
+    const loadInitialImage = async () => {
+      if (!loading && state.id) {
+        try {
+          // Get equipped items and check for cached generated image
+          const { InventoryService } = await import('../lib/inventoryService');
+          const inventoryData = await InventoryService.getBunnyFullInventory(state.id);
+          const equippedItems = Object.values(inventoryData.equipment).map(item => ({
+            item_id: item.item_id,
+            slot: item.slot,
+            image_url: item.item?.image_url || '',
+            name: item.item?.name || 'Unknown Item'
+          })).filter(item => item.image_url);
+
+          if (equippedItems.length > 0) {
+            // Generate cache key to check for existing generated image (including base bunny name and scene)
+            const selectedBaseBunny = localStorage.getItem('selected-base-bunny') || 'base-bunny-transparent.png';
+            const selectedScene = localStorage.getItem('selected-scene') || 'meadow';
+            const baseBunnyName = selectedBaseBunny.replace('.png', '');
+            const sortedItems = equippedItems
+              .sort((a, b) => a.item_id.localeCompare(b.item_id))
+              .map(item => item.item_id)
+              .join(',');
+            const cacheKey = `bunny_gemini_${baseBunnyName}_${selectedScene}_${sortedItems}`;
+            const cachedImageUrl = `/generated-bunnies/${cacheKey}.png`;
+            
+            // Check if cached generated image exists
+            try {
+              const response = await fetch(cachedImageUrl, { method: 'HEAD' });
+              if (response.ok) {
+                console.log('Loading existing generated bunny:', cachedImageUrl);
+                setBunnyImageUrl(cachedImageUrl);
+                return;
+              }
+            } catch {
+              // No cached image, fall through to base bunny
+            }
+          }
+          
+          // No equipped items or no cached image, use base bunny
+          setBunnyImageUrl(getBaseBunnyPath());
+        } catch (error) {
+          console.error('Error loading bunny image:', error);
+          setBunnyImageUrl(getBaseBunnyPath());
+        }
+      } else if (!loading) {
+        setBunnyImageUrl(getBaseBunnyPath());
+      }
+    };
+
+    loadInitialImage();
   }, [state.id, loading]);
+
+  // Also check for cached images when equipment might have changed
+  useEffect(() => {
+    if (!loading && state.id) {
+      loadInitialImage();
+    }
+  }, [state.lastUpdated]); // Trigger when bunny state updates
+
+  const loadInitialImage = async () => {
+    if (!loading && state.id) {
+      try {
+        // Get equipped items and check for cached generated image
+        const { InventoryService } = await import('../lib/inventoryService');
+        const inventoryData = await InventoryService.getBunnyFullInventory(state.id);
+        const equippedItems = Object.values(inventoryData.equipment).map(item => ({
+          item_id: item.item_id,
+          slot: item.slot,
+          image_url: item.item?.image_url || '',
+          name: item.item?.name || 'Unknown Item'
+        })).filter(item => item.image_url);
+
+        if (equippedItems.length > 0) {
+          // Generate cache key to check for existing generated image (including base bunny name and scene)
+          const selectedBaseBunny = localStorage.getItem('selected-base-bunny') || 'base-bunny-transparent.png';
+          const selectedScene = localStorage.getItem('selected-scene') || 'meadow';
+          const baseBunnyName = selectedBaseBunny.replace('.png', '');
+          const sortedItems = equippedItems
+            .sort((a, b) => a.item_id.localeCompare(b.item_id))
+            .map(item => item.item_id)
+            .join(',');
+          const cacheKey = `bunny_gemini_${baseBunnyName}_${selectedScene}_${sortedItems}`;
+          const cachedImageUrl = `/generated-bunnies/${cacheKey}.png`;
+          
+          // Check if cached generated image exists
+          try {
+            const response = await fetch(cachedImageUrl, { method: 'HEAD' });
+            if (response.ok) {
+              console.log('Loading existing generated bunny:', cachedImageUrl);
+              setBunnyImageUrl(cachedImageUrl);
+              return;
+            }
+          } catch {
+            // No cached image, fall through to base bunny
+          }
+        }
+        
+        // No equipped items or no cached image, use base bunny
+        setBunnyImageUrl(getBaseBunnyPath());
+      } catch (error) {
+        console.error('Error loading bunny image:', error);
+        setBunnyImageUrl(getBaseBunnyPath());
+      }
+    } else if (!loading) {
+      setBunnyImageUrl(getBaseBunnyPath());
+    }
+  };
 
   const performAction = async (action: ActionType) => {
     const modifications = getActionEffects(action);
@@ -230,19 +341,40 @@ export function BunnyProvider({ children }: { children: React.ReactNode }) {
     
     if (!state.id) {
       console.log('No bunny ID, using base image');
-      setBunnyImageUrl('/base-bunny-transparent.png');
+      setBunnyImageUrl(getBaseBunnyPath());
       return;
     }
 
     console.log('Generating bunny image for ID:', state.id);
+    setImageGenerating(true);
 
     try {
+      // Get equipped items from inventory service
+      const { InventoryService } = await import('../lib/inventoryService');
+      const inventoryData = await InventoryService.getBunnyFullInventory(state.id);
+      const equippedItems = Object.values(inventoryData.equipment).map(item => ({
+        item_id: item.item_id,
+        slot: item.slot,
+        image_url: item.item?.image_url || '',
+        name: item.item?.name || 'Unknown Item'
+      })).filter(item => item.image_url);
+
+      console.log('Equipped items for generation:', equippedItems);
+
+      const selectedBaseBunny = localStorage.getItem('selected-base-bunny') || 'base-bunny-transparent.png';
+      const selectedScene = localStorage.getItem('selected-scene') || 'meadow';
+      
       const response = await fetch('/api/generate-bunny-image', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'x-base-bunny': selectedBaseBunny,
+          'x-scene': selectedScene,
         },
-        body: JSON.stringify({ bunnyId: state.id }),
+        body: JSON.stringify({ 
+          bunnyId: state.id,
+          equippedItems: equippedItems
+        }),
       });
 
       if (!response.ok) {
@@ -255,7 +387,9 @@ export function BunnyProvider({ children }: { children: React.ReactNode }) {
     } catch (error) {
       console.error('Error generating bunny image:', error);
       // Fallback to base bunny image
-      setBunnyImageUrl('/base-bunny-transparent.png');
+      setBunnyImageUrl(getBaseBunnyPath());
+    } finally {
+      setImageGenerating(false);
     }
   };
 
@@ -300,6 +434,7 @@ export function BunnyProvider({ children }: { children: React.ReactNode }) {
     state,
     bunnyImageUrl,
     loading,
+    imageGenerating,
     performAction,
     getStatPercentage,
     getStatEmoji,

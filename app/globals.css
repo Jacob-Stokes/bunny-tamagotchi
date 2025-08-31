@@ -34,4 +34,11 @@
   .safe-area {
     padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
   }
+
+  .pixel-font {
+    font-family: 'Courier New', 'Monaco', 'Menlo', monospace;
+    font-weight: bold;
+    text-shadow: 1px 1px 0px rgba(0,0,0,0.8);
+    letter-spacing: -0.5px;
+  }
 }

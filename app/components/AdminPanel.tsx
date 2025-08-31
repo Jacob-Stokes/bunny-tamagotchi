@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { InventoryService } from '../lib/inventoryService';
+import { SceneService, Scene, CreateSceneData, UpdateSceneData } from '../lib/sceneService';
 import { useAuth } from '../context/AuthContext';
 import { Item, SlotType, RarityType, ItemInsert } from '../types/inventory';
 import { supabase } from '../lib/supabase';
@@ -16,6 +17,74 @@ export default function AdminPanel() {
   const [editingItem, setEditingItem] = useState<Item | null>(null);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [showBaseBunnySection, setShowBaseBunnySection] = useState(false);
+  const [showSceneSection, setShowSceneSection] = useState(false);
+  const [availableBaseBunnies, setAvailableBaseBunnies] = useState<string[]>([]);
+  const [currentBaseBunny, setCurrentBaseBunny] = useState<string>('base-bunny-transparent.png');
+  const [currentScene, setCurrentScene] = useState<string>('meadow');
+  const [allScenes, setAllScenes] = useState<Scene[]>([]);
+  const [showSceneForm, setShowSceneForm] = useState(false);
+  const [editingScene, setEditingScene] = useState<Scene | null>(null);
+  const [sceneUploadingImage, setSceneUploadingImage] = useState(false);
+  const [selectedSceneFile, setSelectedSceneFile] = useState<File | null>(null);
+  const [sceneFormData, setSceneFormData] = useState<Partial<CreateSceneData>>({
+    id: '',
+    name: '',
+    description: '',
+    background_image_url: '',
+  });
+
+  // Predefined scene options
+  const sceneOptions = [
+    {
+      id: 'meadow',
+      name: 'Sunny Meadow',
+      description: 'Beautiful sunny meadow scene with soft green grass, blue sky with fluffy white clouds, and colorful flowers scattered around',
+      emoji: '🌸'
+    },
+    {
+      id: 'forest',
+      name: 'Magical Forest',
+      description: 'Enchanted forest with tall trees, dappled sunlight filtering through leaves, mushrooms, and fairy lights',
+      emoji: '🌲'
+    },
+    {
+      id: 'beach',
+      name: 'Tropical Beach',
+      description: 'Sandy beach with palm trees, clear blue ocean waves, seashells, and warm golden sunlight',
+      emoji: '🏖️'
+    },
+    {
+      id: 'garden',
+      name: 'Flower Garden',
+      description: 'Lush flower garden with roses, butterflies, stone pathways, and a gentle fountain in the background',
+      emoji: '🌹'
+    },
+    {
+      id: 'snowy',
+      name: 'Winter Wonderland',
+      description: 'Snowy landscape with evergreen trees, soft falling snowflakes, and a cozy winter atmosphere',
+      emoji: '❄️'
+    },
+    {
+      id: 'space',
+      name: 'Cosmic Adventure',
+      description: 'Dreamy space scene with stars, planets, nebula colors, and floating cosmic elements',
+      emoji: '🌌'
+    },
+    {
+      id: 'library',
+      name: 'Cozy Library',
+      description: 'Warm library interior with tall bookshelves, soft lighting, comfortable reading nooks, and floating books',
+      emoji: '📚'
+    },
+    {
+      id: 'cafe',
+      name: 'Cute Cafe',
+      description: 'Charming cafe setting with pastries, coffee cups, warm lighting, and cozy indoor atmosphere',
+      emoji: '☕'
+    }
+  ];
 
   const { user } = useAuth();
 
@@ -66,8 +135,189 @@ export default function AdminPanel() {
   useEffect(() => {
     if (isOpen && isAdmin) {
       loadItems();
+      loadBaseBunnies();
+      loadCurrentBaseBunny();
+      loadCurrentScene();
+      loadScenes();
     }
   }, [isOpen, isAdmin]);
+
+  const loadBaseBunnies = async () => {
+    try {
+      const response = await fetch('/api/base-bunnies');
+      if (response.ok) {
+        const data = await response.json();
+        setAvailableBaseBunnies(data.baseBunnies);
+      }
+    } catch (err) {
+      console.error('Error loading base bunnies:', err);
+    }
+  };
+
+  const loadCurrentBaseBunny = () => {
+    const saved = localStorage.getItem('selected-base-bunny');
+    if (saved) {
+      setCurrentBaseBunny(saved);
+    }
+  };
+
+  const loadCurrentScene = () => {
+    const saved = localStorage.getItem('selected-scene');
+    if (saved) {
+      setCurrentScene(saved);
+    }
+  };
+
+  const selectBaseBunny = (bunnyFileName: string) => {
+    setCurrentBaseBunny(bunnyFileName);
+    localStorage.setItem('selected-base-bunny', bunnyFileName);
+    console.log('Selected base bunny:', bunnyFileName);
+  };
+
+  const selectScene = (sceneId: string) => {
+    setCurrentScene(sceneId);
+    localStorage.setItem('selected-scene', sceneId);
+    console.log('Selected scene:', sceneId);
+  };
+
+  const loadScenes = async () => {
+    try {
+      const scenes = await SceneService.getAllScenes();
+      setAllScenes(scenes);
+    } catch (err) {
+      console.error('Error loading scenes:', err);
+    }
+  };
+
+  const handleSceneFormChange = (field: string, value: any) => {
+    setSceneFormData(prev => ({ ...prev, [field]: value }));
+  };
+
+  const createScene = async () => {
+    if (!sceneFormData.id || !sceneFormData.name || !sceneFormData.description) {
+      setError('Missing required fields');
+      return;
+    }
+
+    try {
+      setSceneUploadingImage(true);
+      
+      let imageUrl = sceneFormData.background_image_url || '';
+      if (selectedSceneFile && sceneFormData.id) {
+        imageUrl = await uploadSceneImage(selectedSceneFile, sceneFormData.id);
+      }
+
+      const scene = await SceneService.createScene({
+        id: sceneFormData.id,
+        name: sceneFormData.name,
+        description: sceneFormData.description,
+        background_image_url: imageUrl,
+      });
+
+      await loadScenes();
+      setShowSceneForm(false);
+      resetSceneForm();
+      console.log('Scene created successfully');
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setSceneUploadingImage(false);
+    }
+  };
+
+  const updateScene = async () => {
+    if (!editingScene || !sceneFormData.name || !sceneFormData.description) {
+      setError('Missing required fields');
+      return;
+    }
+
+    try {
+      setSceneUploadingImage(true);
+      
+      let imageUrl = sceneFormData.background_image_url || '';
+      if (selectedSceneFile && editingScene.id) {
+        imageUrl = await uploadSceneImage(selectedSceneFile, editingScene.id);
+      }
+
+      const scene = await SceneService.updateScene(editingScene.id, {
+        name: sceneFormData.name,
+        description: sceneFormData.description,
+        background_image_url: imageUrl,
+      });
+
+      await loadScenes();
+      setEditingScene(null);
+      resetSceneForm();
+      console.log('Scene updated successfully');
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setSceneUploadingImage(false);
+    }
+  };
+
+  const deleteScene = async (sceneId: string) => {
+    if (!confirm('Are you sure you want to delete this scene?')) {
+      return;
+    }
+
+    try {
+      await SceneService.deleteScene(sceneId);
+      await loadScenes();
+      console.log('Scene deleted successfully');
+    } catch (err: any) {
+      setError(err.message);
+    }
+  };
+
+  const startEditScene = (scene: Scene) => {
+    setEditingScene(scene);
+    setSceneFormData({
+      id: scene.id,
+      name: scene.name,
+      description: scene.description,
+      background_image_url: scene.background_image_url,
+    });
+    setShowSceneForm(true);
+  };
+
+  const uploadSceneImage = async (file: File, sceneId: string): Promise<string> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('sceneId', sceneId);
+
+    const response = await fetch('/api/upload-scene-image', {
+      method: 'POST',
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || 'Upload failed');
+    }
+
+    const result = await response.json();
+    return result.filePath;
+  };
+
+  const handleSceneFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      setSelectedSceneFile(file);
+    }
+  };
+
+  const resetSceneForm = () => {
+    setSceneFormData({
+      id: '',
+      name: '',
+      description: '',
+      background_image_url: '',
+    });
+    setEditingScene(null);
+    setShowSceneForm(false);
+    setSelectedSceneFile(null);
+  };
 
   const handleFormChange = (field: string, value: any) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -282,23 +532,268 @@ export default function AdminPanel() {
 
         {!showAddForm ? (
           <div>
-            {/* Add Item Button */}
-            <div className="mb-6">
+            {/* Navigation Tabs */}
+            <div className="mb-6 flex gap-4">
               <button
-                onClick={() => setShowAddForm(true)}
-                className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700"
+                onClick={() => { setShowBaseBunnySection(false); setShowSceneSection(false); }}
+                className={`px-4 py-2 rounded-lg font-medium ${!showBaseBunnySection && !showSceneSection
+                  ? 'bg-red-600 text-white' 
+                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
               >
-                ➕ Add New Item
+                📦 Items Management
+              </button>
+              <button
+                onClick={() => { setShowBaseBunnySection(true); setShowSceneSection(false); }}
+                className={`px-4 py-2 rounded-lg font-medium ${showBaseBunnySection && !showSceneSection
+                  ? 'bg-red-600 text-white' 
+                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
+              >
+                🐰 Base Bunny Selection
+              </button>
+              <button
+                onClick={() => { setShowBaseBunnySection(false); setShowSceneSection(true); }}
+                className={`px-4 py-2 rounded-lg font-medium ${showSceneSection
+                  ? 'bg-red-600 text-white' 
+                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
+              >
+                🌸 Scene Selection
               </button>
             </div>
 
-            {/* Items List */}
-            {loading ? (
-              <div className="text-center py-8">Loading items...</div>
+            {!showBaseBunnySection && !showSceneSection ? (
+              <div>
+                {/* Add Item Button */}
+                <div className="mb-6">
+                  <button
+                    onClick={() => setShowAddForm(true)}
+                    className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700"
+                  >
+                    ➕ Add New Item
+                  </button>
+                </div>
+              </div>
+            ) : showBaseBunnySection ? (
+              <div>
+                {/* Base Bunny Selection */}
+                <h3 className="text-lg font-semibold mb-4">Select Base Bunny</h3>
+                <div className="mb-4">
+                  <p className="text-sm text-gray-600 mb-4">
+                    Choose the default bunny image that will be used as the base for all bunny generations.
+                    Current selection: <strong>{currentBaseBunny}</strong>
+                  </p>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                    {availableBaseBunnies.map((bunnyFile) => (
+                      <div 
+                        key={bunnyFile}
+                        className={`border-2 rounded-lg p-4 cursor-pointer hover:bg-gray-50 ${
+                          currentBaseBunny === bunnyFile 
+                            ? 'border-red-500 bg-red-50' 
+                            : 'border-gray-200'
+                        }`}
+                        onClick={() => selectBaseBunny(bunnyFile)}
+                      >
+                        <img 
+                          src={`/base-bunnies/${bunnyFile}`}
+                          alt={bunnyFile}
+                          className="w-full h-32 object-cover rounded mb-2"
+                        />
+                        <p className="text-sm text-center font-medium">
+                          {bunnyFile.replace('.png', '').replace(/-/g, ' ')}
+                        </p>
+                        {currentBaseBunny === bunnyFile && (
+                          <div className="text-center mt-2">
+                            <span className="bg-red-500 text-white px-2 py-1 rounded text-xs">
+                              Selected
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
             ) : (
-              <div className="space-y-2">
-                <h3 className="text-lg font-semibold mb-4">All Items ({allItems.length})</h3>
-                {allItems.map(item => (
+              <div>
+                {/* Scene Management */}
+                {!showSceneForm ? (
+                  <div>
+                    <div className="flex justify-between items-center mb-4">
+                      <h3 className="text-lg font-semibold">Scene Management</h3>
+                      <button
+                        onClick={() => setShowSceneForm(true)}
+                        className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700"
+                      >
+                        ➕ Add New Scene
+                      </button>
+                    </div>
+                    
+                    <div className="mb-6">
+                      <p className="text-sm text-gray-600 mb-4">
+                        Choose the background scene that will be used when generating bunny images with Gemini.
+                        Current selection: <strong>{allScenes.find(s => s.id === currentScene)?.name || 'Sunny Meadow'}</strong>
+                      </p>
+                      
+                      <div className="space-y-4">
+                        {allScenes.map((scene) => (
+                          <div 
+                            key={scene.id}
+                            className={`border-2 rounded-lg p-4 ${
+                              currentScene === scene.id 
+                                ? 'border-red-500 bg-red-50' 
+                                : 'border-gray-200'
+                            }`}
+                          >
+                            <div className="flex items-start gap-4">
+                              {scene.background_image_url && (
+                                <img 
+                                  src={scene.background_image_url}
+                                  alt={scene.name}
+                                  className="w-24 h-24 object-cover rounded border"
+                                />
+                              )}
+                              <div className="flex-1">
+                                <div className="flex justify-between items-start mb-2">
+                                  <h4 className="font-medium text-lg">{scene.name}</h4>
+                                  <div className="flex gap-2">
+                                    <button
+                                      onClick={() => selectScene(scene.id)}
+                                      className={`px-3 py-1 rounded text-sm ${
+                                        currentScene === scene.id 
+                                          ? 'bg-red-500 text-white' 
+                                          : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                                      }`}
+                                    >
+                                      {currentScene === scene.id ? 'Selected' : 'Select'}
+                                    </button>
+                                    <button
+                                      onClick={() => startEditScene(scene)}
+                                      className="bg-blue-600 text-white px-3 py-1 rounded text-sm hover:bg-blue-700"
+                                    >
+                                      Edit
+                                    </button>
+                                    <button
+                                      onClick={() => deleteScene(scene.id)}
+                                      className="bg-red-600 text-white px-3 py-1 rounded text-sm hover:bg-red-700"
+                                    >
+                                      Delete
+                                    </button>
+                                  </div>
+                                </div>
+                                <p className="text-sm text-gray-600 leading-relaxed mb-2">
+                                  {scene.description}
+                                </p>
+                                <p className="text-xs text-gray-500">
+                                  ID: {scene.id} • Created: {new Date(scene.created_at).toLocaleDateString()}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div>
+                    {/* Scene Add/Edit Form */}
+                    <div className="mb-4">
+                      <h3 className="text-lg font-semibold">
+                        {editingScene ? 'Edit Scene' : 'Add New Scene'}
+                      </h3>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4 mb-6">
+                      <div>
+                        <label className="block text-sm font-medium mb-2">Scene ID*</label>
+                        <input
+                          type="text"
+                          value={sceneFormData.id || ''}
+                          onChange={(e) => handleSceneFormChange('id', e.target.value)}
+                          disabled={!!editingScene}
+                          className="w-full border border-gray-300 rounded px-3 py-2"
+                          placeholder="underwater_cave"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium mb-2">Name*</label>
+                        <input
+                          type="text"
+                          value={sceneFormData.name || ''}
+                          onChange={(e) => handleSceneFormChange('name', e.target.value)}
+                          className="w-full border border-gray-300 rounded px-3 py-2"
+                          placeholder="Underwater Cave"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="mb-6">
+                      <label className="block text-sm font-medium mb-2">Description*</label>
+                      <textarea
+                        value={sceneFormData.description || ''}
+                        onChange={(e) => handleSceneFormChange('description', e.target.value)}
+                        className="w-full border border-gray-300 rounded px-3 py-2"
+                        rows={3}
+                        placeholder="Mystical underwater cave with glowing crystals, fish swimming around, and shimmering water reflections"
+                      />
+                    </div>
+
+                    {/* Scene Image Upload */}
+                    <div className="mb-6">
+                      <label className="block text-sm font-medium mb-2">Scene Background Image</label>
+                      <div className="space-y-3">
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={handleSceneFileSelect}
+                          className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
+                        />
+                        {selectedSceneFile && (
+                          <p className="text-sm text-green-600">
+                            Selected: {selectedSceneFile.name}
+                          </p>
+                        )}
+                        {sceneFormData.background_image_url && !selectedSceneFile && (
+                          <div className="flex items-center gap-3">
+                            <img 
+                              src={sceneFormData.background_image_url} 
+                              alt="Current scene" 
+                              className="w-24 h-24 object-cover rounded border"
+                            />
+                            <span className="text-sm text-gray-600">Current image</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex gap-3">
+                      <button
+                        onClick={editingScene ? updateScene : createScene}
+                        disabled={sceneUploadingImage}
+                        className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {sceneUploadingImage ? 'Uploading...' : (editingScene ? 'Update Scene' : 'Create Scene')}
+                      </button>
+                      <button
+                        onClick={resetSceneForm}
+                        className="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Items List - only show when in items management section */}
+            {!showBaseBunnySection && !showSceneSection && (
+              <>
+                {loading ? (
+                  <div className="text-center py-8">Loading items...</div>
+                ) : (
+                  <div className="space-y-2">
+                    <h3 className="text-lg font-semibold mb-4">All Items ({allItems.length})</h3>
+                    {allItems.map(item => (
                   <div key={item.id} className="bg-gray-50 p-4 rounded-lg flex justify-between items-center">
                     <div className="flex items-center gap-3">
                       {item.image_url && (
@@ -342,7 +837,9 @@ export default function AdminPanel() {
                     </div>
                   </div>
                 ))}
-              </div>
+                  </div>
+                )}
+              </>
             )}
           </div>
         ) : (
