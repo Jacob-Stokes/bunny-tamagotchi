@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { writeFile } from 'fs/promises';
 import path from 'path';
 import GeminiImageService from '../../lib/geminiImageService';
+import { GeminiImageService as GeminiImageServiceClass } from '../../lib/geminiImageService';
 import { InventoryService } from '../../lib/inventoryService';
 import { supabase } from '../../lib/supabase';
 
@@ -126,7 +127,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Generate cache key
-    const cacheKey = GeminiImageService.getCacheKey(equippedItems);
+    const cacheKey = GeminiImageServiceClass.getCacheKey(equippedItems);
     const cacheFileName = `${cacheKey}.png`;
     const cachePath = path.join(process.cwd(), 'public', 'generated-bunnies', cacheFileName);
 

@@ -283,4 +283,7 @@ Generate an image showing the bunny wearing/using these items in this pleasant o
   }
 }
 
-export default new GeminiImageService();
+const geminiImageServiceInstance = new GeminiImageService();
+
+export { GeminiImageService };
+export default geminiImageServiceInstance;
