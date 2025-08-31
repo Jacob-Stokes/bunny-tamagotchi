@@ -3,12 +3,19 @@ import { createClient } from '@supabase/supabase-js';
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
+// Debug logging
+console.log('🔍 SUPABASE DEBUG:');
+console.log('  URL:', supabaseUrl ? `${supabaseUrl.substring(0, 30)}...` : 'MISSING');
+console.log('  Key:', supabaseAnonKey ? `${supabaseAnonKey.substring(0, 20)}...` : 'MISSING');
+
 // Check if Supabase credentials are configured
 const isSupabaseConfigured = 
   supabaseUrl && 
   supabaseAnonKey && 
   supabaseUrl !== 'your-project-url' && 
   supabaseAnonKey !== 'your-anon-key';
+
+console.log('  Configured:', isSupabaseConfigured);
 
 // Create a mock client if not configured, real client if configured
 export const supabase = isSupabaseConfigured 
