@@ -19,9 +19,9 @@ export class SceneCompositor {
     const { width, height, channels } = info;
     const pixelArray = new Uint8Array(data);
     
-    // Helper function to check if pixel is white
+    // Helper function to check if pixel is white or light gray (background)
     const isWhitePixel = (r: number, g: number, b: number) => {
-      return r >= 240 && g >= 240 && b >= 240;
+      return r >= 200 && g >= 200 && b >= 200;
     };
     
     // Create a map to track which pixels are background
