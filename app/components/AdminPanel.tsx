@@ -613,6 +613,12 @@ export default function AdminPanel() {
               >
                 🎨 Generated Outfits
               </button>
+              <button
+                onClick={() => window.dispatchEvent(new CustomEvent('toggle-admin-debug'))}
+                className="px-4 py-2 rounded-lg font-medium bg-orange-600 text-white hover:bg-orange-700"
+              >
+                🎮 Animation Debug
+              </button>
             </div>
 
             {!showBaseBunnySection && !showSceneSection && !showGeneratedOutfits ? (

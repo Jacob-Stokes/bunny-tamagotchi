@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Get selected base bunny from request or use default
-    const selectedBaseBunny = request.headers.get('x-base-bunny') || 'base-bunny-transparent.png';
+    const selectedBaseBunny = request.headers.get('x-base-bunny') || 'bunny-base.png';
 
     // If no items equipped, return base bunny
     if (equippedItems.length === 0) {
@@ -69,18 +69,22 @@ export async function POST(request: NextRequest) {
     const bunnyImagePath = path.join(bunnyFolderPath, 'normal.png');
     const bunnyMetadataPath = path.join(bunnyFolderPath, 'metadata.json');
 
-    // Check if bunny already exists (skip if force regenerating)
+    // Check if bunny already exists
     let bunnyExists = false;
-    if (!forceRegenerate) {
-      try {
-        await require('fs/promises').access(bunnyImagePath);
-        bunnyExists = true;
+    try {
+      await require('fs/promises').access(bunnyImagePath);
+      bunnyExists = true;
+      if (forceRegenerate) {
+        console.log('🔄 Force regenerate: bunny exists, will check for missing animation frames');
+      } else {
         console.log('🎯 Bunny cache hit:', `${bunnyFolderName}/normal.png`);
-      } catch {
+      }
+    } catch {
+      if (forceRegenerate) {
+        console.log('🔄 Force regenerate: bunny does not exist, will generate everything');
+      } else {
         // Need to generate bunny
       }
-    } else {
-      console.log('🔥 Force regenerate requested, bypassing cache');
     }
 
     // Handle blink frame for cached bunnies
@@ -88,50 +92,111 @@ export async function POST(request: NextRequest) {
       console.log('🎬 Checking blink frame for cached bunny...');
       
       const blinkFramePath = path.join(bunnyFolderPath, 'blink.png');
-      let animationFrames = {};
-      let needsAnimationGeneration = false;
+      const smileFramePath = path.join(bunnyFolderPath, 'smile.png');
+      const waveFramePath = path.join(bunnyFolderPath, 'wave.png');
       
+      let animationFrames = {};
+      const missingFrames = [];
+      
+      // Check which frames are missing
       try {
         await require('fs/promises').access(blinkFramePath);
         console.log('🎯 Blink frame already exists');
-        animationFrames = { cached: true };
       } catch {
-        needsAnimationGeneration = true;
+        missingFrames.push('blink');
+      }
+      
+      try {
+        await require('fs/promises').access(smileFramePath);
+        console.log('🎯 Smile frame already exists');
+      } catch {
+        missingFrames.push('smile');
+      }
+      
+      try {
+        await require('fs/promises').access(waveFramePath);
+        console.log('🎯 Wave frame already exists');
+      } catch {
+        missingFrames.push('wave');
       }
 
-      if (needsAnimationGeneration) {
+      if (missingFrames.length > 0 || forceRegenerate) {
+        const framesToGenerate = forceRegenerate ? ['blink', 'smile', 'wave'] : missingFrames;
+        console.log('🎬 Generating animation frames for cached bunny:', framesToGenerate);
+        
         try {
           // Load existing bunny for animation generation
           const existingBunnyData = await require('fs/promises').readFile(bunnyImagePath);
           
           const geminiService = new GeminiImageServiceClass();
-          const frames = await geminiService.generateAnimationFrames(existingBunnyData, ['blink']);
+          const frames = await geminiService.generateAnimationFrames(existingBunnyData, framesToGenerate);
           
-          if (frames && frames.blink) {
-            // Save the blink frame
+          const generatedFrames = [];
+          
+          // Save blink frame
+          if (frames && frames.blink && (missingFrames.includes('blink') || forceRegenerate)) {
             await writeFile(blinkFramePath, frames.blink.imageData);
             console.log('💾 Saved blink frame for cached bunny:', `${bunnyFolderName}/blink.png`);
             
-            // Apply white background removal to blink frame
             try {
               console.log('🎭 Applying white background removal to cached blink frame...');
               const { SceneCompositor } = await import('../../lib/sceneCompositor');
               const transparentBlinkBuffer = await SceneCompositor.removeWhiteBackground(blinkFramePath);
               await writeFile(blinkFramePath, transparentBlinkBuffer);
               console.log('✅ Cached blink frame background removed');
+              generatedFrames.push('blink');
             } catch (blinkTransparentError) {
               console.error('🔥 Cached blink frame background removal failed:', blinkTransparentError);
             }
+          }
+          
+          // Save smile frame
+          if (frames && frames.smile && (missingFrames.includes('smile') || forceRegenerate)) {
+            await writeFile(smileFramePath, frames.smile.imageData);
+            console.log('💾 Saved smile frame for cached bunny:', `${bunnyFolderName}/smile.png`);
             
-            animationFrames = { generated: ['blink'] };
+            try {
+              console.log('🎭 Applying white background removal to cached smile frame...');
+              const { SceneCompositor } = await import('../../lib/sceneCompositor');
+              const transparentSmileBuffer = await SceneCompositor.removeWhiteBackground(smileFramePath);
+              await writeFile(smileFramePath, transparentSmileBuffer);
+              console.log('✅ Cached smile frame background removed');
+              generatedFrames.push('smile');
+            } catch (smileTransparentError) {
+              console.error('🔥 Cached smile frame background removal failed:', smileTransparentError);
+            }
+          }
+          
+          // Save wave frame
+          if (frames && frames.wave && (missingFrames.includes('wave') || forceRegenerate)) {
+            await writeFile(waveFramePath, frames.wave.imageData);
+            console.log('💾 Saved wave frame for cached bunny:', `${bunnyFolderName}/wave.png`);
+            
+            try {
+              console.log('🎭 Applying white background removal to cached wave frame...');
+              const { SceneCompositor } = await import('../../lib/sceneCompositor');
+              const transparentWaveBuffer = await SceneCompositor.removeWhiteBackground(waveFramePath);
+              await writeFile(waveFramePath, transparentWaveBuffer);
+              console.log('✅ Cached wave frame background removed');
+              generatedFrames.push('wave');
+            } catch (waveTransparentError) {
+              console.error('🔥 Cached wave frame background removal failed:', waveTransparentError);
+            }
+          }
+          
+          if (generatedFrames.length > 0) {
+            animationFrames = { generated: generatedFrames };
           } else {
-            console.log('⚠️ Failed to generate blink frame for cached bunny');
-            animationFrames = { error: 'Failed to generate blink frame' };
+            console.log('⚠️ Failed to generate any animation frames for cached bunny');
+            animationFrames = { error: 'Failed to generate animation frames' };
           }
         } catch (animationError) {
-          console.error('🔥 Blink frame generation failed for cached bunny:', animationError);
-          animationFrames = { error: 'Blink frame generation failed' };
+          console.error('🔥 Animation frame generation failed for cached bunny:', animationError);
+          animationFrames = { error: 'Animation frame generation failed' };
         }
+      } else {
+        console.log('✅ All animation frames already exist for cached bunny');
+        animationFrames = { cached: ['blink', 'smile', 'wave'] };
       }
 
       // Apply white background removal to cached bunny for transparency
@@ -219,10 +284,12 @@ export async function POST(request: NextRequest) {
         if (needsGeneration) {
           try {
             const geminiService = new GeminiImageServiceClass();
-            const frames = await geminiService.generateAnimationFrames(bunnyResult.imageData, ['blink']);
+            const frames = await geminiService.generateAnimationFrames(bunnyResult.imageData, ['blink', 'smile', 'wave']);
             
+            const generatedFrames = [];
+            
+            // Save blink frame
             if (frames && frames.blink) {
-              // Save the blink frame
               await writeFile(blinkFramePath, frames.blink.imageData);
               console.log('💾 Saved blink frame:', `${bunnyFolderName}/blink.png`);
               
@@ -233,14 +300,55 @@ export async function POST(request: NextRequest) {
                 const transparentBlinkBuffer = await SceneCompositor.removeWhiteBackground(blinkFramePath);
                 await writeFile(blinkFramePath, transparentBlinkBuffer);
                 console.log('✅ Blink frame background removed');
+                generatedFrames.push('blink');
               } catch (blinkTransparentError) {
                 console.error('🔥 Blink frame background removal failed:', blinkTransparentError);
               }
+            }
+            
+            // Save smile frame
+            if (frames && frames.smile) {
+              const smileFramePath = path.join(bunnyFolderPath, 'smile.png');
+              await writeFile(smileFramePath, frames.smile.imageData);
+              console.log('💾 Saved smile frame:', `${bunnyFolderName}/smile.png`);
               
-              animationFrames = { generated: ['blink'] };
+              // Apply white background removal to smile frame
+              try {
+                console.log('🎭 Applying white background removal to smile frame...');
+                const { SceneCompositor } = await import('../../lib/sceneCompositor');
+                const transparentSmileBuffer = await SceneCompositor.removeWhiteBackground(smileFramePath);
+                await writeFile(smileFramePath, transparentSmileBuffer);
+                console.log('✅ Smile frame background removed');
+                generatedFrames.push('smile');
+              } catch (smileTransparentError) {
+                console.error('🔥 Smile frame background removal failed:', smileTransparentError);
+              }
+            }
+            
+            // Save wave frame
+            if (frames && frames.wave) {
+              const waveFramePath = path.join(bunnyFolderPath, 'wave.png');
+              await writeFile(waveFramePath, frames.wave.imageData);
+              console.log('💾 Saved wave frame:', `${bunnyFolderName}/wave.png`);
+              
+              // Apply white background removal to wave frame
+              try {
+                console.log('🎭 Applying white background removal to wave frame...');
+                const { SceneCompositor } = await import('../../lib/sceneCompositor');
+                const transparentWaveBuffer = await SceneCompositor.removeWhiteBackground(waveFramePath);
+                await writeFile(waveFramePath, transparentWaveBuffer);
+                console.log('✅ Wave frame background removed');
+                generatedFrames.push('wave');
+              } catch (waveTransparentError) {
+                console.error('🔥 Wave frame background removal failed:', waveTransparentError);
+              }
+            }
+            
+            if (generatedFrames.length > 0) {
+              animationFrames = { generated: generatedFrames };
             } else {
-              console.log('⚠️ Failed to generate blink frame');
-              animationFrames = { error: 'Failed to generate blink frame' };
+              console.log('⚠️ Failed to generate any animation frames');
+              animationFrames = { error: 'Failed to generate any animation frames' };
             }
           } catch (error) {
             console.error('🔥 Blink frame generation failed:', error);

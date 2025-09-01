@@ -935,21 +935,50 @@ TECHNICAL REQUIREMENTS:
 
         const model = this.genAI.getGenerativeModel({ model: 'gemini-2.5-flash-image-preview' });
         
-        const response = await this.retryWithBackoff(() => model.generateContent([
+        // Try to load reference image for this animation type
+        const referenceImageBase64 = await this.loadAnimationReferenceImage(frameType);
+        
+        const contentParts: any[] = [
           {
             inlineData: {
               data: finalBunnyBase64,
               mimeType: 'image/png'
             }
-          },
-          {
-            text: `REFERENCE IMAGE: The image above shows the bunny that needs animation.
+          }
+        ];
+
+        // Add reference image if available
+        if (referenceImageBase64) {
+          contentParts.push({
+            inlineData: {
+              data: referenceImageBase64,
+              mimeType: 'image/png'
+            }
+          });
+        }
+
+        // Add the text prompt
+        const textPrompt = referenceImageBase64 
+          ? `CURRENT BUNNY: Image 1 shows the fully dressed bunny that needs the ${frameType} animation.
+REFERENCE EXAMPLE: Image 2 shows the exact ${frameType} expression/pose you should copy.
 
 ${prompt}
 
-CRITICAL: Use the reference image above as your exact template. Copy everything from it perfectly except for the specific animation change described.`
-          }
-        ]));
+CRITICAL INSTRUCTIONS:
+- Keep EVERYTHING from image 1: all clothing, accessories, colors, pose, body position, style
+- ONLY copy the ${frameType} expression/pose from image 2 (eyes closed, head tilt, etc.)
+- Do NOT remove any clothing or accessories from image 1
+- Do NOT change the bunny's body, just apply the ${frameType} expression from image 2 to the dressed bunny from image 1
+- The result should be the exact same dressed bunny but with the ${frameType} animation applied`
+          : `REFERENCE IMAGE: The image above shows the bunny that needs animation.
+
+${prompt}
+
+CRITICAL: Use the reference image above as your exact template. Copy everything from it perfectly except for the specific animation change described.`;
+
+        contentParts.push({ text: textPrompt });
+        
+        const response = await this.retryWithBackoff(() => model.generateContent(contentParts));
 
         if (response.response.candidates?.[0]?.content?.parts) {
           for (const part of response.response.candidates[0].content.parts) {
@@ -1067,6 +1096,40 @@ ANIMATION CHANGE:
 ANIMATION CHANGE:
 - Create a subtle ${frameType} variation
 - Keep everything else identical`;
+    }
+  }
+
+  // Load reference animation image if available
+  private async loadAnimationReferenceImage(frameType: string): Promise<string | null> {
+    try {
+      // Only use reference images for animations that are hard to describe in text
+      // For now, disable blink references since they cause clothing issues
+      const referenceImageMap: { [key: string]: string } = {
+        // 'blink': 'bunny-base-blink.png', // Disabled - causes clothing removal
+        'smile': 'bunny-base-smile.png',
+        'wave': 'bunny-base-wave.png'
+        // Add more mappings as we create more reference images
+      };
+
+      const referenceFilename = referenceImageMap[frameType];
+      if (!referenceFilename) {
+        console.log(`🎭 No reference image available for ${frameType}`);
+        return null;
+      }
+
+      const referencePath = path.join(process.cwd(), 'public', 'base-bunnies', 'bunny-base', referenceFilename);
+      
+      // Use dynamic import to avoid module bundling issues
+      const fs = await import('fs/promises');
+      const referenceBuffer = await fs.readFile(referencePath);
+      const referenceBase64 = referenceBuffer.toString('base64');
+      
+      console.log(`🎭 Loaded reference image for ${frameType}: ${referenceFilename}`);
+      return referenceBase64;
+      
+    } catch (error) {
+      console.log(`🎭 Could not load reference image for ${frameType}:`, error);
+      return null;
     }
   }
 

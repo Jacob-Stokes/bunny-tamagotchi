@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useReducer, useEffect, useState } from 'react';
 import { BunnyState, BunnyStats, ActionType, StatModification } from '../types/bunny';
 import { BunnyService, DatabaseBunny } from '../lib/bunnyService';
+import { CacheUtils } from '../lib/cacheUtils';
 import { useAuth } from './AuthContext';
 
 interface BunnyContextType {
@@ -14,6 +15,7 @@ interface BunnyContextType {
   getStatPercentage: (stat: keyof BunnyStats) => number;
   getStatEmoji: (stat: keyof BunnyStats) => string;
   regenerateBunnyImage: () => Promise<void>;
+  setBunnyImageUrl: (url: string) => void;
 }
 
 const defaultStats: BunnyStats = {
@@ -196,11 +198,12 @@ export function BunnyProvider({ children }: { children: React.ReactNode }) {
   const [currentEquipment, setCurrentEquipment] = useState<string>('');
   const [isGenerating, setIsGenerating] = useState(false);
 
-  // Simplified bunny image loading - determine what should be shown and generate if needed
+  // Check if outfit exists and load it, but don't auto-generate
   useEffect(() => {
     if (loading || !state.id || isGenerating) return;
 
-    const updateBunnyImage = async () => {
+    const checkExistingOutfit = async () => {
+      console.log('🔍 Checking for existing saved outfit');
       try {
         // Get current equipped items
         const { InventoryService } = await import('../lib/inventoryService');
@@ -214,23 +217,24 @@ export function BunnyProvider({ children }: { children: React.ReactNode }) {
           }))
           .filter(item => item.image_url);
 
-        // Create equipment signature for change detection
+        // Create equipment signature for existing outfit detection
         const equipmentSignature = equippedItems
           .sort((a, b) => a.item_id.localeCompare(b.item_id))
           .map(item => item.item_id)
           .join(',');
 
         // Get current settings
-        const selectedBaseBunny = localStorage.getItem('selected-base-bunny') || 'base-bunny-transparent.png';
+        const selectedBaseBunny = localStorage.getItem('selected-base-bunny') || 'bunny-base.png';
         const selectedScene = localStorage.getItem('selected-scene') || 'meadow';
         const fullSignature = `${selectedBaseBunny}|${selectedScene}|${equipmentSignature}`;
 
         // If equipment hasn't changed, don't do anything
         if (currentEquipment === fullSignature && bunnyImageUrl) {
+          console.log('🚫 No equipment changes detected, keeping current image');
           return;
         }
 
-        console.log('🔄 Equipment changed, updating bunny image');
+        console.log('🔄 Equipment signature changed, checking for saved outfit');
         console.log('Previous:', currentEquipment);
         console.log('Current:', fullSignature);
 
@@ -243,23 +247,47 @@ export function BunnyProvider({ children }: { children: React.ReactNode }) {
           return;
         }
 
-        // Generate bunny image with items
-        console.log('🎨 Generating bunny with', equippedItems.length, 'items');
-        await generateBunnyWithCurrentItems();
+        // Check if an outfit image exists for this combination using equipment-based cache key
+        const cacheKey = CacheUtils.getBunnyItemsCacheKey(
+          equippedItems.map(item => ({
+            item_id: item.item_id,
+            slot: item.slot, 
+            image_url: item.image_url,
+            name: item.name
+          })),
+          selectedBaseBunny
+        );
+        const outfitImageUrl = `/generated-bunnies/${cacheKey}/normal.png`;
+        
+        console.log('🔍 Looking for existing outfit with cache key:', cacheKey);
+        
+        try {
+          const response = await fetch(outfitImageUrl, { method: 'HEAD' });
+          if (response.ok) {
+            console.log('✅ Found existing outfit image:', outfitImageUrl);
+            setBunnyImageUrl(outfitImageUrl);
+          } else {
+            console.log('📷 No existing outfit found, showing base bunny until outfit is generated');
+            setBunnyImageUrl(getBaseBunnyPath());
+          }
+        } catch {
+          console.log('📷 Error checking outfit, showing base bunny until outfit is generated');
+          setBunnyImageUrl(getBaseBunnyPath());
+        }
 
       } catch (error) {
-        console.error('Error updating bunny image:', error);
+        console.error('Error checking existing outfit:', error);
         setBunnyImageUrl(getBaseBunnyPath());
       }
     };
 
-    updateBunnyImage();
-  }, [state.id, state.lastUpdated, loading, currentEquipment, isGenerating, bunnyImageUrl]);
+    checkExistingOutfit();
+  }, [state.id, loading, currentEquipment, isGenerating]);
 
-  // Listen for force regeneration events
+  // Listen for force regeneration events (now only triggered by outfit saves)
   useEffect(() => {
     const handleForceRegenerate = () => {
-      console.log('🔄 Received force regenerate event');
+      console.log('🔄 Received force regenerate event - outfit was saved');
       if (!loading && state.id && !isGenerating) {
         const event = setTimeout(async () => {
           await generateBunnyWithCurrentItems();
@@ -374,21 +402,68 @@ export function BunnyProvider({ children }: { children: React.ReactNode }) {
 
   // Force regenerate current bunny (for refresh button)
   const regenerateBunnyImage = async () => {
-    console.log('🔄 Force regenerating bunny image');
+    console.log('🔄 Force regenerating bunny image and missing animation frames');
     
     if (!state.id) {
       setBunnyImageUrl(getBaseBunnyPath());
       return;
     }
 
-    // Clear current equipment signature to force regeneration
-    setCurrentEquipment('');
-    
-    // This will trigger the useEffect to regenerate
-    setTimeout(() => {
-      const event = new CustomEvent('bunny-equipment-changed');
-      window.dispatchEvent(event);
-    }, 100);
+    setIsGenerating(true);
+    setImageGenerating(true);
+
+    try {
+      // Get current equipped items
+      const { InventoryService } = await import('../lib/inventoryService');
+      const inventoryData = await InventoryService.getBunnyFullInventory(state.id);
+      const equippedItems = Object.values(inventoryData.equipment)
+        .map(item => ({
+          item_id: item.item_id,
+          slot: item.slot,
+          image_url: item.item?.image_url || '',
+          name: item.item?.name || 'Unknown Item'
+        }))
+        .filter(item => item.image_url);
+
+      const selectedBaseBunny = localStorage.getItem('selected-base-bunny') || 'base-bunny-transparent.png';
+      const selectedScene = localStorage.getItem('selected-scene') || 'meadow';
+      
+      console.log('🔄 Force regenerating with', equippedItems.length, 'items and missing animation frames');
+
+      const response = await fetch('/api/generate-bunny-image', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-base-bunny': selectedBaseBunny,
+          'x-scene': selectedScene,
+        },
+        body: JSON.stringify({ 
+          bunnyId: state.id,
+          equippedItems: equippedItems,
+          generateAnimation: true,
+          forceRegenerate: true // This will regenerate the bunny and missing frames
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Force regeneration failed: ${response.status}`);
+      }
+
+      const result = await response.json();
+      
+      console.log('✅ Force regeneration complete:', result.imageUrl);
+      setBunnyImageUrl(result.imageUrl);
+      
+      // Clear equipment signature to ensure fresh state
+      setCurrentEquipment('');
+      
+    } catch (error) {
+      console.error('🔥 Force regeneration failed:', error);
+      setBunnyImageUrl(getBaseBunnyPath());
+    } finally {
+      setIsGenerating(false);
+      setImageGenerating(false);
+    }
   };
 
   const getStatPercentage = (stat: keyof BunnyStats): number => {
@@ -437,6 +512,7 @@ export function BunnyProvider({ children }: { children: React.ReactNode }) {
     getStatPercentage,
     getStatEmoji,
     regenerateBunnyImage,
+    setBunnyImageUrl,
   };
 
   return (

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useBunny } from './context/BunnyContext';
 import { useAuth } from './context/AuthContext';
 import AuthModal from './components/AuthModal';
@@ -8,18 +8,38 @@ import InventoryDebug from './components/InventoryDebug';
 import AdminPanel from './components/AdminPanel';
 import AnimatedBunny from './components/BlinkingBunny';
 import AnimationDebugPanel from './components/AnimationDebugPanel';
+import ActionsTabs from './components/ActionsTabs';
 
 export default function Home() {
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [debugTrigger, setDebugTrigger] = useState<string | null>(null);
-  const { state, loading, performAction, getStatPercentage, getStatEmoji, bunnyImageUrl, regenerateBunnyImage, imageGenerating } = useBunny();
+  const [debugMode, setDebugMode] = useState(false);
+  const [showAdminDebug, setShowAdminDebug] = useState(false);
+  const [activeTab, setActiveTab] = useState<'actions' | 'wardrobe' | 'chat' | 'adventure'>('actions');
+  const { state, loading, performAction, getStatPercentage, getStatEmoji, bunnyImageUrl, regenerateBunnyImage, imageGenerating, setBunnyImageUrl } = useBunny();
   const { user, signOut, signInAsGuest } = useAuth();
+
+  // Listen for admin debug toggle events
+  useEffect(() => {
+    const handleToggleAdminDebug = () => {
+      setShowAdminDebug(prev => !prev);
+    };
+
+    window.addEventListener('toggle-admin-debug', handleToggleAdminDebug);
+    return () => window.removeEventListener('toggle-admin-debug', handleToggleAdminDebug);
+  }, []);
 
   const handleTriggerAnimation = (animationType: string) => {
     console.log('🎮 Page: Triggering animation:', animationType);
     const uniqueTrigger = `${animationType}-${Date.now()}`;
     console.log('🎮 Page: Setting debugTrigger to:', uniqueTrigger);
     setDebugTrigger(uniqueTrigger);
+  };
+
+  const handleToggleDebugMode = () => {
+    const newDebugMode = !debugMode;
+    setDebugMode(newDebugMode);
+    console.log('🎮 Debug mode:', newDebugMode ? 'ON (natural animations disabled)' : 'OFF (natural animations enabled)');
   };
   return (
     <main className="max-w-sm mx-auto p-4 safe-area min-h-screen flex flex-col">
@@ -81,6 +101,7 @@ export default function Home() {
         </div>
       ) : (
         <div className="flex-1 flex flex-col justify-start space-y-6">
+          {/* Bunny - Always visible on ALL tabs */}
           <div className="w-full flex flex-col items-center">
             <div className="w-full aspect-square max-w-sm relative overflow-hidden rounded-3xl">
               <AnimatedBunny 
@@ -88,6 +109,7 @@ export default function Home() {
                 alt="Bunny" 
                 className="w-full h-full object-contain"
                 debugTrigger={debugTrigger}
+                debugMode={debugMode}
               />
               
               {/* Stats overlay in corners */}
@@ -113,53 +135,14 @@ export default function Home() {
                 </div>
               )}
             </div>
-            <button 
-              onClick={() => regenerateBunnyImage()}
-              disabled={imageGenerating}
-              className={`mt-4 px-4 py-2 rounded-lg transition-colors text-sm ${
-                imageGenerating 
-                  ? 'bg-gray-400 text-gray-600 cursor-not-allowed' 
-                  : 'bg-blue-600 text-white hover:bg-blue-700'
-              }`}
-            >
-              {imageGenerating ? '⏳ Generating...' : '🔄 Refresh Bunny'}
-            </button>
           </div>
 
-
-          <div className="bg-white/20 backdrop-blur-sm rounded-2xl p-4">
-            <h2 className="text-lg font-semibold text-purple-700 mb-3 text-center">
-              Actions
-            </h2>
-            <div className="grid grid-cols-2 gap-3">
-              <button 
-                onClick={() => performAction('feed')}
-                className="touch-safe bg-bunny-cream/80 hover:bg-bunny-cream rounded-xl py-3 px-4 text-purple-800 font-medium transition-colors"
-              >
-                🥕 Feed
-              </button>
-              <button 
-                onClick={() => performAction('play')}
-                className="touch-safe bg-bunny-cream/80 hover:bg-bunny-cream rounded-xl py-3 px-4 text-purple-800 font-medium transition-colors"
-              >
-                🎮 Play
-              </button>
-              <button 
-                onClick={() => performAction('sleep')}
-                className="touch-safe bg-bunny-cream/80 hover:bg-bunny-cream rounded-xl py-3 px-4 text-purple-800 font-medium transition-colors"
-              >
-                💤 Sleep
-              </button>
-              <button 
-                onClick={() => performAction('clean')}
-                className="touch-safe bg-bunny-cream/80 hover:bg-bunny-cream rounded-xl py-3 px-4 text-purple-800 font-medium transition-colors"
-              >
-                🧼 Clean
-              </button>
-            </div>
-            
-            <AnimationDebugPanel onTriggerAnimation={handleTriggerAnimation} />
-          </div>
+          {/* ActionsTabs - always in same position */}
+          <ActionsTabs 
+            performAction={performAction} 
+            bunnyImageUrl={bunnyImageUrl} 
+            onTabChange={setActiveTab}
+          />
         </div>
       )}
 
@@ -168,7 +151,45 @@ export default function Home() {
       )}
 
       <InventoryDebug />
+      
+      {/* Admin Refresh Button */}
+      <div className="fixed bottom-20 right-4 z-40">
+        <button 
+          onClick={() => regenerateBunnyImage()}
+          disabled={imageGenerating}
+          className={`px-3 py-2 rounded-lg transition-colors text-xs font-medium shadow-lg ${
+            imageGenerating 
+              ? 'bg-gray-400 text-gray-600 cursor-not-allowed' 
+              : 'bg-blue-600 text-white hover:bg-blue-700'
+          }`}
+        >
+          {imageGenerating ? '⏳' : '🔄'}
+        </button>
+      </div>
+      
       <AdminPanel />
+      
+      {/* Admin Debug Panel Overlay */}
+      {showAdminDebug && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl p-6 max-w-4xl w-full max-h-[80vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-bold text-orange-800">🎮 Animation Debug Panel</h2>
+              <button
+                onClick={() => setShowAdminDebug(false)}
+                className="text-gray-500 hover:text-gray-700 text-2xl"
+              >
+                ×
+              </button>
+            </div>
+            <AnimationDebugPanel 
+              onTriggerAnimation={handleTriggerAnimation}
+              debugMode={debugMode}
+              onToggleDebugMode={handleToggleDebugMode}
+            />
+          </div>
+        </div>
+      )}
     </main>
   )
 }
