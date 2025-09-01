@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Delete existing files in the folder
-    const filesToDelete = ['normal.png', 'blink.png', 'scene_normal.png', 'scene_blink.png'];
+    const filesToDelete = ['normal.png', 'blink.png', 'smile.png', 'wave.png', 'scene_normal.png', 'scene_blink.png'];
     
     for (const filename of filesToDelete) {
       try {
@@ -49,8 +49,28 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Regenerate the outfit using the stored metadata
-    console.log('🎨 Regenerating with items:', metadata.equippedItems);
+    // Fetch current item data from database (metadata might not have image_url)
+    console.log('🔍 Fetching current item data for:', metadata.equippedItems.map((item: any) => item.item_id));
+    
+    const { InventoryService } = await import('../../lib/inventoryService');
+    const allItems = await InventoryService.getItems();
+    
+    // Map metadata items to current database items
+    const equippedItems = metadata.equippedItems.map((metadataItem: any) => {
+      const currentItem = allItems.find(item => item.id === metadataItem.item_id);
+      if (!currentItem) {
+        console.warn(`⚠️ Item ${metadataItem.item_id} not found in database, using metadata`);
+        return metadataItem;
+      }
+      return {
+        item_id: currentItem.id,
+        slot: currentItem.slot,
+        name: currentItem.name,
+        image_url: currentItem.image_url
+      };
+    });
+    
+    console.log('🎨 Regenerating with current items:', equippedItems);
     
     try {
       // Call the same generation endpoint with the stored data
@@ -63,7 +83,7 @@ export async function POST(request: NextRequest) {
         },
         body: JSON.stringify({
           bunnyId: 'force-regen', // Dummy ID for force regeneration
-          equippedItems: metadata.equippedItems,
+          equippedItems: equippedItems, // Use fetched items with image_url
           generateAnimation: true,
           forceRegenerate: true // Flag to bypass cache
         }),

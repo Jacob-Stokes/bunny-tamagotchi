@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useBunny } from './context/BunnyContext';
 import { useAuth } from './context/AuthContext';
+import { BunnyPersonalityTraits, BunnyPersonalityService } from './lib/bunnyPersonality';
 import AuthModal from './components/AuthModal';
 import InventoryDebug from './components/InventoryDebug';
 import AdminPanel from './components/AdminPanel';
@@ -16,8 +17,17 @@ export default function Home() {
   const [debugMode, setDebugMode] = useState(false);
   const [showAdminDebug, setShowAdminDebug] = useState(false);
   const [activeTab, setActiveTab] = useState<'actions' | 'wardrobe' | 'chat' | 'adventure' | 'settings'>('actions');
+  const [personality, setPersonality] = useState<BunnyPersonalityTraits | undefined>();
   const { state, loading, performAction, getStatPercentage, getStatEmoji, bunnyImageUrl, regenerateBunnyImage, imageGenerating, setBunnyImageUrl } = useBunny();
   const { user, signOut, signInAsGuest } = useAuth();
+
+  // Initialize personality based on bunny stats when bunny loads
+  useEffect(() => {
+    if (state && !personality) {
+      const generatedPersonality = BunnyPersonalityService.generatePersonalityFromStats(state.stats);
+      setPersonality(generatedPersonality);
+    }
+  }, [state, personality]);
 
   // Listen for admin debug toggle events
   useEffect(() => {
@@ -127,6 +137,8 @@ export default function Home() {
             performAction={performAction} 
             bunnyImageUrl={bunnyImageUrl} 
             onTabChange={setActiveTab}
+            personality={personality}
+            onPersonalityChange={setPersonality}
           />
         </div>
       )}
@@ -171,6 +183,8 @@ export default function Home() {
               onTriggerAnimation={handleTriggerAnimation}
               debugMode={debugMode}
               onToggleDebugMode={handleToggleDebugMode}
+              personality={personality}
+              onPersonalityChange={setPersonality}
             />
           </div>
         </div>

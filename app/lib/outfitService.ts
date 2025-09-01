@@ -171,16 +171,38 @@ export class OutfitService {
   }
 
   static async getDailyUsage(userId: string): Promise<{ used: number; limit: number }> {
-    // For now, return default values since tables don't exist yet
-    // TODO: Implement after running migrations
-    console.log('📝 Would get daily usage for user:', userId);
+    if (!supabase) {
+      throw new Error('Supabase client not initialized');
+    }
+
+    const today = new Date().toISOString().split('T')[0];
+
+    const { data: limit, error } = await supabase
+      .from('outfit_generation_limits')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('date', today)
+      .single();
+
+    if (error && error.code !== 'PGRST116') {
+      throw new Error(`Failed to get daily usage: ${error.message}`);
+    }
+
+    if (!limit) {
+      // No record exists yet, user hasn't generated any outfits today
+      return {
+        used: 0,
+        limit: 10
+      };
+    }
+
     return {
-      used: 0,
-      limit: 10
+      used: limit.generations_used,
+      limit: limit.daily_limit
     };
   }
 
-  private static async incrementDailyUsage(userId: string): Promise<void> {
+  static async incrementDailyUsage(userId: string): Promise<void> {
     if (!supabase) {
       throw new Error('Supabase client not initialized');
     }

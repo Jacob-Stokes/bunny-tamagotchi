@@ -7,6 +7,7 @@ import { useAuth } from '../context/AuthContext';
 import { Item, SlotType, RarityType, ItemInsert } from '../types/inventory';
 import { supabase } from '../lib/supabase';
 import AdminOutfitPreview from './AdminOutfitPreview';
+import OutfitDetailModal, { SelectiveRegenActions } from './OutfitDetailModal';
 
 export default function AdminPanel() {
   const [isOpen, setIsOpen] = useState(false);
@@ -38,6 +39,8 @@ export default function AdminPanel() {
   const [generatedOutfits, setGeneratedOutfits] = useState<any[]>([]);
   const [loadingOutfits, setLoadingOutfits] = useState(false);
   const [regeneratingOutfit, setRegeneratingOutfit] = useState<string | null>(null);
+  const [selectedOutfit, setSelectedOutfit] = useState<any>(null);
+  const [showOutfitDetail, setShowOutfitDetail] = useState(false);
 
   // Predefined scene options
   const sceneOptions = [
@@ -366,6 +369,47 @@ export default function AdminPanel() {
     }
   };
 
+  const handleSelectiveRegeneration = async (actions: SelectiveRegenActions) => {
+    setRegeneratingOutfit(actions.outfitKey);
+    try {
+      const response = await fetch('/api/selective-regenerate-outfit', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(actions),
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        console.log('Selective regeneration completed:', result);
+        // Reload the outfits list to get updated data
+        await loadGeneratedOutfits();
+        // Close the modal
+        setShowOutfitDetail(false);
+      } else {
+        const error = await response.json();
+        console.error('Failed to perform selective regeneration:', error);
+        alert(`Failed to perform selective regeneration: ${error.error || 'Unknown error'}`);
+      }
+    } catch (error) {
+      console.error('Error during selective regeneration:', error);
+      alert('Error during selective regeneration');
+    } finally {
+      setRegeneratingOutfit(null);
+    }
+  };
+
+  const openOutfitDetail = (outfit: any) => {
+    setSelectedOutfit(outfit);
+    setShowOutfitDetail(true);
+  };
+
+  const closeOutfitDetail = () => {
+    setSelectedOutfit(null);
+    setShowOutfitDetail(false);
+  };
+
   const handleFormChange = (field: string, value: any) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
@@ -684,13 +728,22 @@ export default function AdminPanel() {
                             </p>
                           </div>
                           
-                          <button
-                            onClick={() => forceRegenerateOutfit(outfit.key)}
-                            disabled={regeneratingOutfit === outfit.key}
-                            className="w-full bg-red-600 text-white px-3 py-2 rounded text-sm hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                          >
-                            {regeneratingOutfit === outfit.key ? '⏳ Regenerating...' : '🔥 Force Regen'}
-                          </button>
+                          <div className="space-y-2">
+                            <button
+                              onClick={() => openOutfitDetail(outfit)}
+                              disabled={regeneratingOutfit === outfit.key}
+                              className="w-full bg-blue-600 text-white px-3 py-2 rounded text-sm hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              {regeneratingOutfit === outfit.key ? '⏳ Processing...' : '🔍 View Details'}
+                            </button>
+                            <button
+                              onClick={() => forceRegenerateOutfit(outfit.key)}
+                              disabled={regeneratingOutfit === outfit.key}
+                              className="w-full bg-red-600 text-white px-3 py-2 rounded text-sm hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              {regeneratingOutfit === outfit.key ? '⏳ Regenerating...' : '🔥 Force Regen'}
+                            </button>
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -1159,6 +1212,21 @@ export default function AdminPanel() {
             </div>
           </div>
         )}
+        
+        {/* Outfit Detail Modal */}
+        <OutfitDetailModal
+          outfit={selectedOutfit}
+          isOpen={showOutfitDetail}
+          onClose={closeOutfitDetail}
+          onSelectiveRegen={handleSelectiveRegeneration}
+          onFullRegen={() => {
+            if (selectedOutfit) {
+              forceRegenerateOutfit(selectedOutfit.key);
+              setShowOutfitDetail(false);
+            }
+          }}
+          isRegenerating={!!regeneratingOutfit}
+        />
       </div>
     </div>
   );

@@ -380,7 +380,19 @@ export default function Wardrobe({ className = '', bunnyImageUrl }: WardrobeProp
 
   const getSlotItems = () => {
     if (!bunnyInventory) return [];
-    return bunnyInventory.inventory.filter(inv => inv.item?.slot === selectedSlot);
+    return bunnyInventory.inventory
+      .filter(inv => inv.item?.slot === selectedSlot)
+      .sort((a, b) => {
+        // Put equipped item first
+        const aEquipped = isEquipped(a.item?.id || '');
+        const bEquipped = isEquipped(b.item?.id || '');
+        
+        if (aEquipped && !bEquipped) return -1;
+        if (!aEquipped && bEquipped) return 1;
+        
+        // If both equipped or both not equipped, sort by name
+        return (a.item?.name || '').localeCompare(b.item?.name || '');
+      });
   };
 
   const isEquipped = (itemId: string) => {

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { GeminiImageService } from '../../lib/geminiImageService';
 import { OutfitService } from '../../lib/outfitService';
+import { supabase } from '../../lib/supabase';
 
 interface SaveOutfitRequest {
   bunnyId: string;
@@ -18,6 +19,23 @@ export async function POST(request: NextRequest) {
   try {
     const body: SaveOutfitRequest = await request.json();
     const { bunnyId, equippedItems } = body;
+
+    // For now, skip auth check and use bunnyId as user identifier
+    // TODO: Implement proper auth when needed
+    const userId = bunnyId; // Use bunnyId as user identifier for now
+    
+    // Check daily limit before allowing outfit generation  
+    try {
+      const canGenerate = await OutfitService.checkDailyLimit(userId);
+      if (!canGenerate) {
+        const usage = await OutfitService.getDailyUsage(userId);
+        return NextResponse.json({ 
+          error: `Daily outfit limit reached (${usage.used}/${usage.limit}). Try again tomorrow!` 
+        }, { status: 429 });
+      }
+    } catch (limitError) {
+      console.warn('⚠️ Daily limit check failed, allowing request:', limitError);
+    }
 
     console.log('🎨 Saving outfit for bunny:', bunnyId, 'with items:', equippedItems.length);
 
@@ -39,7 +57,7 @@ export async function POST(request: NextRequest) {
     // Generate bunny with equipment by calling the existing generation API
     console.log('🎨 Generating bunny images with equipment...');
     
-    const response = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/generate-bunny-image`, {
+    const response = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3001'}/api/generate-bunny-image`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -79,6 +97,15 @@ export async function POST(request: NextRequest) {
       scene: selectedScene,
       image_urls: imageUrls
     });
+
+    // Increment daily usage counter after successful generation
+    try {
+      await OutfitService.incrementDailyUsage(userId);
+      console.log('📊 Daily outfit counter incremented');
+    } catch (counterError) {
+      console.error('⚠️ Failed to increment daily counter:', counterError);
+      // Don't fail the whole request if counter fails
+    }
 
     console.log('✅ Outfit saved successfully with images generated');
 
