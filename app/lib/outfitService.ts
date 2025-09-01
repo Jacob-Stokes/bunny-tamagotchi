@@ -224,4 +224,65 @@ export class OutfitService {
     
     return `${baseBunny}|${scene}|${sortedItems}`;
   }
+
+  // Favourite methods
+  static async getFavouriteOutfits(userId: string): Promise<string[]> {
+    try {
+      const { data, error } = await supabase
+        .from('outfit_favourites')
+        .select('outfit_key')
+        .eq('user_id', userId);
+
+      if (error) {
+        console.error('Error fetching favourite outfits:', error);
+        return [];
+      }
+
+      return data.map(row => row.outfit_key);
+    } catch (error) {
+      console.error('Error in getFavouriteOutfits:', error);
+      return [];
+    }
+  }
+
+  static async addToFavourites(userId: string, outfitKey: string): Promise<boolean> {
+    try {
+      const { error } = await supabase
+        .from('outfit_favourites')
+        .insert({
+          user_id: userId,
+          outfit_key: outfitKey
+        });
+
+      if (error) {
+        console.error('Error adding to favourites:', error);
+        return false;
+      }
+
+      return true;
+    } catch (error) {
+      console.error('Error in addToFavourites:', error);
+      return false;
+    }
+  }
+
+  static async removeFromFavourites(userId: string, outfitKey: string): Promise<boolean> {
+    try {
+      const { error } = await supabase
+        .from('outfit_favourites')
+        .delete()
+        .eq('user_id', userId)
+        .eq('outfit_key', outfitKey);
+
+      if (error) {
+        console.error('Error removing from favourites:', error);
+        return false;
+      }
+
+      return true;
+    } catch (error) {
+      console.error('Error in removeFromFavourites:', error);
+      return false;
+    }
+  }
 }

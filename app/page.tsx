@@ -15,7 +15,7 @@ export default function Home() {
   const [debugTrigger, setDebugTrigger] = useState<string | null>(null);
   const [debugMode, setDebugMode] = useState(false);
   const [showAdminDebug, setShowAdminDebug] = useState(false);
-  const [activeTab, setActiveTab] = useState<'actions' | 'wardrobe' | 'chat' | 'adventure'>('actions');
+  const [activeTab, setActiveTab] = useState<'actions' | 'wardrobe' | 'chat' | 'adventure' | 'settings'>('actions');
   const { state, loading, performAction, getStatPercentage, getStatEmoji, bunnyImageUrl, regenerateBunnyImage, imageGenerating, setBunnyImageUrl } = useBunny();
   const { user, signOut, signInAsGuest } = useAuth();
 
@@ -43,26 +43,6 @@ export default function Home() {
   };
   return (
     <main className="max-w-sm mx-auto p-4 safe-area min-h-screen flex flex-col">
-      <div className="flex justify-between items-center py-2">
-        <h1 className="text-2xl font-bold text-purple-800">
-          Bunny App 🐰
-        </h1>
-        {user ? (
-          <button
-            onClick={() => signOut()}
-            className="text-sm text-purple-600 hover:text-purple-800"
-          >
-            Sign Out
-          </button>
-        ) : (
-          <button
-            onClick={() => setShowAuthModal(true)}
-            className="text-sm bg-purple-600 text-white px-3 py-1 rounded-lg hover:bg-purple-700"
-          >
-            Sign In
-          </button>
-        )}
-      </div>
 
       {!user ? (
         <div className="flex-1 flex items-center justify-center">
@@ -103,7 +83,7 @@ export default function Home() {
         <div className="flex-1 flex flex-col justify-start space-y-6">
           {/* Bunny - Always visible on ALL tabs */}
           <div className="w-full flex flex-col items-center">
-            <div className="w-full aspect-square max-w-sm relative overflow-hidden rounded-3xl">
+            <div className="w-full aspect-square max-w-sm relative overflow-hidden rounded-3xl" style={{ backgroundImage: 'url(/scenes/meadow.png)', backgroundSize: 'cover', backgroundPosition: 'center' }}>
               <AnimatedBunny 
                 bunnyImageUrl={bunnyImageUrl}
                 alt="Bunny" 
@@ -118,6 +98,11 @@ export default function Home() {
               </div>
               <div className="absolute top-3 right-3 pixel-font text-sm text-white bg-black/70 rounded-lg px-2 py-1">
                 {getStatEmoji('stimulation')} {getStatPercentage('stimulation')}
+              </div>
+              
+              {/* Bunny Name - centered between stats */}
+              <div className="absolute top-3 left-1/2 transform -translate-x-1/2 pixel-font text-lg text-white bg-black/70 rounded-lg px-3 py-1">
+                Bunny
               </div>
               <div className="absolute bottom-3 left-3 pixel-font text-sm text-white bg-black/70 rounded-lg px-2 py-1">
                 {getStatEmoji('comfort')} {getStatPercentage('comfort')}
