@@ -706,7 +706,7 @@ export default function Wardrobe({ className = '', bunnyImageUrl }: WardrobeProp
               </div>
             ) : (
               <div>
-                <div className="grid grid-cols-2 gap-4 max-h-80 overflow-y-auto">
+                <div className="grid grid-cols-2 gap-4 max-h-96 overflow-y-auto">
                   {generatedOutfits.map((outfit) => (
                     <div key={outfit.key} className="relative group">
                       <div 

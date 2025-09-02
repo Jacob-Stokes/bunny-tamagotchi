@@ -14,6 +14,7 @@ export default function Home() {
   const [debugTrigger, setDebugTrigger] = useState<string | null>(null);
   const [debugMode, setDebugMode] = useState(false);
   const [activeTab, setActiveTab] = useState<'actions' | 'wardrobe' | 'chat' | 'adventure' | 'settings'>('actions');
+  const [mounted, setMounted] = useState(false);
   
   const tabs = [
     { id: 'actions', label: 'Bunny', icon: '🐰' },
@@ -30,6 +31,11 @@ export default function Home() {
   const { state, loading, performAction, getStatPercentage, getStatEmoji, bunnyImageUrl, regenerateBunnyImage, imageGenerating, imageLoading, setBunnyImageUrl } = useBunny();
   const { user, signOut, signInAsGuest } = useAuth();
   const { unreadCount } = useNotifications();
+
+  // Client-side mounting
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Initialize personality based on bunny stats when bunny loads
   useEffect(() => {
@@ -115,29 +121,33 @@ export default function Home() {
               )}
               
               {/* Stats overlay stacked on sides */}
-              <div className="absolute bottom-3 left-3 flex flex-col gap-1">
-                <div className="pixel-font text-xxs text-white bg-black/50 rounded px-1 py-0.5">
-                  {getStatEmoji('stimulation')} {getStatPercentage('stimulation')}
-                </div>
-                <div className="pixel-font text-xxs text-white bg-black/50 rounded px-1 py-0.5">
-                  {getStatEmoji('connection')} {getStatPercentage('connection')}
-                </div>
-              </div>
-              <div className="absolute bottom-3 right-3 flex flex-col gap-1">
-                <div className="pixel-font text-xxs text-white bg-black/50 rounded px-1 py-0.5">
-                  {getStatEmoji('comfort')} {getStatPercentage('comfort')}
-                </div>
-                <div className="pixel-font text-xxs text-white bg-black/50 rounded px-1 py-0.5">
-                  {getStatEmoji('energy')} {getStatPercentage('energy')}
-                </div>
-              </div>
+              {mounted && (
+                <>
+                  <div className="absolute bottom-3 left-3 flex flex-col gap-1">
+                    <div className="pixel-font text-xxs text-white bg-black/50 rounded px-1 py-0.5">
+                      {getStatEmoji('stimulation')} {getStatPercentage('stimulation')}
+                    </div>
+                    <div className="pixel-font text-xxs text-white bg-black/50 rounded px-1 py-0.5">
+                      {getStatEmoji('connection')} {getStatPercentage('connection')}
+                    </div>
+                  </div>
+                  <div className="absolute bottom-3 right-3 flex flex-col gap-1">
+                    <div className="pixel-font text-xxs text-white bg-black/50 rounded px-1 py-0.5">
+                      {getStatEmoji('comfort')} {getStatPercentage('comfort')}
+                    </div>
+                    <div className="pixel-font text-xxs text-white bg-black/50 rounded px-1 py-0.5">
+                      {getStatEmoji('energy')} {getStatPercentage('energy')}
+                    </div>
+                  </div>
+                </>
+              )}
               
               {/* Money and Level in top corners */}
               <div className="absolute top-3 left-3 pixel-font text-xxs text-white bg-black/50 rounded px-1 py-0.5">
-                💰 {state?.coins || 0}
+                💰 {mounted ? (state?.coins || 0) : 0}
               </div>
               <div className="absolute top-3 right-3 pixel-font text-xxs text-white bg-black/50 rounded px-1 py-0.5">
-                ⭐ {Math.floor((state?.experience || 0) / 100) + 1}
+                ⭐ {mounted ? Math.floor((state?.experience || 0) / 100) + 1 : 1}
               </div>
 
               {imageGenerating && (
@@ -185,7 +195,7 @@ export default function Home() {
           >
             <span className="text-xl">{tab.icon}</span>
             <span className="text-xs">{tab.label}</span>
-            {tab.id === 'chat' && unreadCount > 0 && (
+            {mounted && tab.id === 'chat' && unreadCount > 0 && (
               <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center font-bold">
                 {unreadCount > 9 ? '9+' : unreadCount}
               </span>
