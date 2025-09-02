@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useBunny } from './context/BunnyContext';
 import { useAuth } from './context/AuthContext';
+import { useNotifications } from './context/NotificationContext';
 import { BunnyPersonalityTraits, BunnyPersonalityService } from './lib/bunnyPersonality';
 import AuthModal from './components/AuthModal';
 import AnimatedBunny from './components/BlinkingBunny';
@@ -13,9 +14,22 @@ export default function Home() {
   const [debugTrigger, setDebugTrigger] = useState<string | null>(null);
   const [debugMode, setDebugMode] = useState(false);
   const [activeTab, setActiveTab] = useState<'actions' | 'wardrobe' | 'chat' | 'adventure' | 'settings'>('actions');
+  
+  const tabs = [
+    { id: 'actions', label: 'Bunny', icon: '🐰' },
+    { id: 'wardrobe', label: 'Wardrobe', icon: '🗄️' },
+    { id: 'chat', label: 'Mailbox', icon: '📬' },
+    { id: 'adventure', label: 'Adventure', icon: '⚔️' },
+    { id: 'settings', label: 'Settings', icon: '⚙️' },
+  ] as const;
+
+  const handleTabChange = (tab: 'actions' | 'wardrobe' | 'chat' | 'adventure' | 'settings') => {
+    setActiveTab(tab);
+  };
   const [personality, setPersonality] = useState<BunnyPersonalityTraits | undefined>();
   const { state, loading, performAction, getStatPercentage, getStatEmoji, bunnyImageUrl, regenerateBunnyImage, imageGenerating, imageLoading, setBunnyImageUrl } = useBunny();
   const { user, signOut, signInAsGuest } = useAuth();
+  const { unreadCount } = useNotifications();
 
   // Initialize personality based on bunny stats when bunny loads
   useEffect(() => {
@@ -39,7 +53,7 @@ export default function Home() {
     console.log('🎮 Debug mode:', newDebugMode ? 'ON (natural animations disabled)' : 'OFF (natural animations enabled)');
   };
   return (
-    <main className="max-w-sm mx-auto px-2 flex flex-col" style={{ 
+    <main className="max-w-sm mx-auto px-2 flex flex-col pb-20" style={{ 
       height: '80vh' /* Stop before URL bar area on mobile */
     }}>
 
@@ -142,7 +156,7 @@ export default function Home() {
             <ActionsTabs 
               performAction={performAction} 
               bunnyImageUrl={bunnyImageUrl} 
-              onTabChange={setActiveTab}
+              activeTab={activeTab}
               personality={personality}
               onPersonalityChange={setPersonality}
               onTriggerAnimation={handleTriggerAnimation}
@@ -156,6 +170,29 @@ export default function Home() {
       {showAuthModal && (
         <AuthModal onClose={() => setShowAuthModal(false)} />
       )}
+
+      {/* Bottom Navigation */}
+      <div className="fixed bottom-0 left-0 right-0 bg-white/30 backdrop-blur-sm border-t border-white/20 px-2 py-1 flex gap-0.5">
+        {tabs.map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => handleTabChange(tab.id)}
+            className={`flex-1 py-2 px-2 rounded-lg text-sm font-medium transition-colors relative flex flex-col items-center gap-1 ${
+              activeTab === tab.id
+                ? 'bg-white text-purple-800 shadow-sm'
+                : 'text-purple-700 hover:text-purple-900 hover:bg-white/20'
+            }`}
+          >
+            <span className="text-xl">{tab.icon}</span>
+            <span className="text-xs">{tab.label}</span>
+            {tab.id === 'chat' && unreadCount > 0 && (
+              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center font-bold">
+                {unreadCount > 9 ? '9+' : unreadCount}
+              </span>
+            )}
+          </button>
+        ))}
+      </div>
 
     </main>
   )

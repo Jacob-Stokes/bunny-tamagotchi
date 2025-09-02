@@ -19,7 +19,7 @@ import AdminOutfitPreview from './AdminOutfitPreview';
 interface ActionsTabsProps {
   performAction: (action: ActionType) => Promise<void>;
   bunnyImageUrl: string;
-  onTabChange?: (tab: 'actions' | 'wardrobe' | 'chat' | 'adventure' | 'settings') => void;
+  activeTab: 'actions' | 'wardrobe' | 'chat' | 'adventure' | 'settings';
   personality?: BunnyPersonalityTraits;
   onPersonalityChange?: (personality: BunnyPersonalityTraits) => void;
   onTriggerAnimation?: (animationType: string) => void;
@@ -30,14 +30,13 @@ interface ActionsTabsProps {
 export default function ActionsTabs({ 
   performAction, 
   bunnyImageUrl, 
-  onTabChange, 
+  activeTab,
   personality, 
   onPersonalityChange,
   onTriggerAnimation,
   debugMode = false,
   onToggleDebugMode = () => {}
 }: ActionsTabsProps) {
-  const [activeTab, setActiveTab] = useState<'actions' | 'wardrobe' | 'chat' | 'adventure' | 'settings'>('actions');
   const [equippedItems, setEquippedItems] = useState<Array<{ item_id: string; slot: string; image_url: string; name: string }>>([]);
   const [showItemsManagement, setShowItemsManagement] = useState(false);
   const [showBaseBunnySelection, setShowBaseBunnySelection] = useState(false);
@@ -187,10 +186,6 @@ export default function ActionsTabs({
     }
   }, [showGeneratedOutfits]);
 
-  const handleTabChange = (tab: 'actions' | 'wardrobe' | 'chat' | 'adventure' | 'settings') => {
-    setActiveTab(tab);
-    onTabChange?.(tab);
-  };
 
   const handleAcceptOutfit = async (jobId: string) => {
     try {
@@ -219,38 +214,10 @@ export default function ActionsTabs({
     };
   };
 
-  const tabs = [
-    { id: 'actions', label: 'Bunny', icon: '🐰' },
-    { id: 'wardrobe', label: 'Wardrobe', icon: '🗄️' },
-    { id: 'chat', label: 'Mailbox', icon: '📬' },
-    { id: 'adventure', label: 'Adventure', icon: '⚔️' },
-    { id: 'settings', label: 'Settings', icon: '⚙️' },
-  ] as const;
 
   return (
     <div>
       <div className="bg-white/20 backdrop-blur-sm rounded-2xl p-2 h-full flex flex-col overflow-hidden">
-      {/* Tab Navigation */}
-      <div className="flex gap-0.5 mb-2 bg-white/30 rounded-xl p-0.5 flex-shrink-0">
-        {tabs.map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => handleTabChange(tab.id)}
-            className={`flex-1 py-1 px-2 rounded-lg text-sm font-medium transition-colors relative ${
-              activeTab === tab.id
-                ? 'bg-white text-purple-800 shadow-sm'
-                : 'text-purple-700 hover:text-purple-900 hover:bg-white/20'
-            }`}
-          >
-            <span className="text-2xl">{tab.icon}</span>
-            {tab.id === 'chat' && unreadCount > 0 && (
-              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center font-bold">
-                {unreadCount > 9 ? '9+' : unreadCount}
-              </span>
-            )}
-          </button>
-        ))}
-      </div>
 
       {/* Tab Content */}
       <div className="flex-1 min-h-0 overflow-hidden">
