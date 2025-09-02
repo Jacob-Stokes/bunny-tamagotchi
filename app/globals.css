@@ -45,6 +45,11 @@
     letter-spacing: -0.5px;
   }
 
+  .text-xxs {
+    font-size: 0.625rem; /* 10px */
+    line-height: 0.875rem; /* 14px */
+  }
+
   .scrollbar-hide {
     -ms-overflow-style: none;
     scrollbar-width: none;

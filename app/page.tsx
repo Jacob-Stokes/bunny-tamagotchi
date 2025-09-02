@@ -100,19 +100,30 @@ export default function Home() {
                 />
               )}
               
-              {/* Stats overlay in corners */}
-              <div className="absolute top-3 left-3 pixel-font text-xs text-white bg-black/50 rounded px-1 py-0.5">
-                {getStatEmoji('connection')} {getStatPercentage('connection')}
+              {/* Stats overlay stacked on sides */}
+              <div className="absolute bottom-3 left-3 flex flex-col gap-1">
+                <div className="pixel-font text-xxs text-white bg-black/50 rounded px-1 py-0.5">
+                  {getStatEmoji('stimulation')} {getStatPercentage('stimulation')}
+                </div>
+                <div className="pixel-font text-xxs text-white bg-black/50 rounded px-1 py-0.5">
+                  {getStatEmoji('connection')} {getStatPercentage('connection')}
+                </div>
               </div>
-              <div className="absolute top-3 right-3 pixel-font text-xs text-white bg-black/50 rounded px-1 py-0.5">
-                {getStatEmoji('stimulation')} {getStatPercentage('stimulation')}
+              <div className="absolute bottom-3 right-3 flex flex-col gap-1">
+                <div className="pixel-font text-xxs text-white bg-black/50 rounded px-1 py-0.5">
+                  {getStatEmoji('comfort')} {getStatPercentage('comfort')}
+                </div>
+                <div className="pixel-font text-xxs text-white bg-black/50 rounded px-1 py-0.5">
+                  {getStatEmoji('energy')} {getStatPercentage('energy')}
+                </div>
               </div>
               
-              <div className="absolute bottom-3 left-3 pixel-font text-xs text-white bg-black/50 rounded px-1 py-0.5">
-                {getStatEmoji('comfort')} {getStatPercentage('comfort')}
+              {/* Money and Level in top corners */}
+              <div className="absolute top-3 left-3 pixel-font text-xxs text-white bg-black/50 rounded px-1 py-0.5">
+                💰 {state?.coins || 0}
               </div>
-              <div className="absolute bottom-3 right-3 pixel-font text-xs text-white bg-black/50 rounded px-1 py-0.5">
-                {getStatEmoji('energy')} {getStatPercentage('energy')}
+              <div className="absolute top-3 right-3 pixel-font text-xxs text-white bg-black/50 rounded px-1 py-0.5">
+                ⭐ {Math.floor((state?.experience || 0) / 100) + 1}
               </div>
 
               {imageGenerating && (
