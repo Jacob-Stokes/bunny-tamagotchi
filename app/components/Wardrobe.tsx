@@ -5,6 +5,7 @@ import { InventoryService } from '../lib/inventoryService';
 import { OutfitService, Outfit } from '../lib/outfitService';
 import { useBunny } from '../context/BunnyContext';
 import { useAuth } from '../context/AuthContext';
+import { useNotifications } from '../context/NotificationContext';
 import { Item, BunnyFullInventory, SlotType } from '../types/inventory';
 import OutfitPreview from './OutfitPreview';
 import AnimatedBunny from './BlinkingBunny';
@@ -21,16 +22,18 @@ export default function Wardrobe({ className = '', bunnyImageUrl }: WardrobeProp
   const [selectedSlot, setSelectedSlot] = useState<SlotType>('head');
   const [saving, setSaving] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
-  const [showMode, setShowMode] = useState<'items' | 'outfits' | 'favourites'>('items');
+  const [selectedItemsForOutfit, setSelectedItemsForOutfit] = useState<{[slot: string]: string}>({});
+  const [showMode, setShowMode] = useState<'outfits' | 'favourites' | 'items'>('outfits');
+  const [selectedItemType, setSelectedItemType] = useState<'head' | 'face' | 'upper_body' | 'lower_body' | 'feet' | 'accessory'>('head');
   const [savedOutfits, setSavedOutfits] = useState<Outfit[]>([]);
   const [generatedOutfits, setGeneratedOutfits] = useState<any[]>([]);
   const [loadingOutfits, setLoadingOutfits] = useState(false);
-  const [dailyUsage, setDailyUsage] = useState<{ used: number; limit: number }>({ used: 0, limit: 10 });
   const [favouriteOutfits, setFavouriteOutfits] = useState<string[]>([]);
   const [currentFavouriteIndex, setCurrentFavouriteIndex] = useState(0);
 
   const { state: bunnyState, regenerateBunnyImage, setBunnyImageUrl } = useBunny();
   const { user } = useAuth();
+  const { queueOutfitGeneration } = useNotifications();
 
   // Load favourites from database
   const loadFavourites = async () => {
@@ -162,7 +165,6 @@ export default function Wardrobe({ className = '', bunnyImageUrl }: WardrobeProp
     loadInventory();
     if (user && user.id !== 'guest-user') {
       loadSavedOutfits();
-      loadDailyUsage();
     }
   }, [user, bunnyState.id]);
 
@@ -197,15 +199,43 @@ export default function Wardrobe({ className = '', bunnyImageUrl }: WardrobeProp
     }
   };
 
-  const switchToOutfit = (outfit: any) => {
+  const switchToOutfit = async (outfit: any) => {
+    if (!bunnyState.id) return;
+    
+    // Trigger bunny zoom out animation immediately
+    window.dispatchEvent(new CustomEvent('outfit-generation-start'));
+    
     try {
-      // Instantly switch to this outfit by setting the image URL directly
-      console.log(`👗 Switching to outfit: ${outfit.key}`);
-      setBunnyImageUrl(outfit.normalUrl);
-      console.log(`✅ Switched to outfit: ${outfit.key}`);
+      setLoading(true);
+      const items = outfit.metadata?.equippedItems || [];
+      console.log(`👗 Switching to outfit: ${outfit.key}`, items);
+      
+      // Set the image URL while bunny is off screen (600ms delay - before bunny returns)
+      setTimeout(() => {
+        setBunnyImageUrl(outfit.normalUrl);
+      }, 600);
+      
+      // First, unequip all current items
+      const currentSlots = Object.keys(bunnyInventory?.equipment || {});
+      for (const slot of currentSlots) {
+        await InventoryService.unequipSlot(bunnyState.id, slot as SlotType);
+      }
+      
+      // Then equip all items from this outfit
+      for (const item of items) {
+        console.log(`🎽 Equipping item: ${item.item_id} in slot ${item.slot}`);
+        await InventoryService.equipItem(bunnyState.id, item.item_id);
+      }
+      
+      // Reload inventory to reflect changes
+      await loadInventory();
+      
+      console.log(`✅ Switched to outfit: ${outfit.key} - equipped ${items.length} items`);
     } catch (error) {
       console.error('Failed to switch to outfit:', error);
       setError('Failed to switch to outfit');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -214,35 +244,37 @@ export default function Wardrobe({ className = '', bunnyImageUrl }: WardrobeProp
     if (showMode === 'outfits' || showMode === 'favourites') {
       loadGeneratedOutfits();
     }
+    // Update selectedSlot when switching to item categories
+    if (['head', 'face', 'upper_body', 'lower_body', 'feet', 'accessory'].includes(showMode)) {
+      setSelectedSlot(showMode as SlotType);
+    }
   }, [showMode]);
 
-  const loadDailyUsage = async () => {
-    if (!user || user.id === 'guest-user') return;
+
+  const selectItemForOutfit = (itemId: string, slot: string) => {
+    console.log('🔧 selectItemForOutfit called with:', { itemId, slot });
+    setSelectedItemsForOutfit(prev => {
+      const newSelected = {
+        ...prev,
+        [slot]: itemId
+      };
+      console.log('🔧 Updated selectedItemsForOutfit:', newSelected);
+      return newSelected;
+    });
+    setHasUnsavedChanges(true);
     
-    try {
-      const usage = await OutfitService.getDailyUsage(user.id);
-      setDailyUsage(usage);
-    } catch (err: any) {
-      console.error('Error loading daily usage:', err);
-    }
+    console.log('Selected item for outfit:', itemId, 'in slot:', slot);
   };
 
-  const equipItem = async (itemId: string) => {
-    if (!bunnyState.id) return;
+  const removeItemFromOutfit = (slot: string) => {
+    setSelectedItemsForOutfit(prev => {
+      const newSelected = { ...prev };
+      delete newSelected[slot];
+      setHasUnsavedChanges(Object.keys(newSelected).length > 0);
+      return newSelected;
+    });
     
-    try {
-      setLoading(true);
-      await InventoryService.equipItem(bunnyState.id, itemId);
-      await loadInventory();
-      setHasUnsavedChanges(true);
-      
-      console.log('Equipped item:', itemId, '- outfit needs to be saved to generate bunny image');
-    } catch (err: any) {
-      setError('Unable to equip item');
-      console.error('Error equipping item:', err);
-    } finally {
-      setLoading(false);
-    }
+    console.log('Removed item from outfit slot:', slot);
   };
 
   const unequipSlot = async (slot: SlotType) => {
@@ -266,55 +298,119 @@ export default function Wardrobe({ className = '', bunnyImageUrl }: WardrobeProp
   const saveOutfit = async () => {
     if (!bunnyState.id) return;
     
+    // Check if any items are selected
+    if (Object.keys(selectedItemsForOutfit).length === 0) {
+      setError('Please select at least one item for your outfit');
+      return;
+    }
+    
     try {
       setSaving(true);
       
-      // Get current equipped items
-      const equippedItems = Object.values(bunnyInventory?.equipment || {})
-        .map(item => ({
-          item_id: item.item_id,
-          slot: item.slot,
-          image_url: item.item?.image_url || '',
-          name: item.item?.name || 'Unknown Item'
-        }))
-        .filter(item => item.image_url);
-
-      console.log('🎨 Saving outfit with', equippedItems.length, 'items');
-
-      // Call API to save outfit and generate images
-      const response = await fetch('/api/save-outfit', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ 
-          bunnyId: bunnyState.id,
-          equippedItems: equippedItems
-        }),
+      // Get ALL items for outfit: currently equipped + newly selected
+      const allOutfitItems: Array<{ item_id: string; slot: string; image_url: string; name: string }> = [];
+      
+      // First, add all currently equipped items (get proper image URLs from inventory)
+      const currentEquipment = Object.values(bunnyInventory?.equipment || {});
+      currentEquipment.forEach(equipped => {
+        // Find the full item data from inventory to get proper image URL
+        const allItems = bunnyInventory?.inventory || [];
+        const inventoryItem = allItems.find(i => i.item?.id === equipped.item_id);
+        const item = inventoryItem?.item;
+        
+        allOutfitItems.push({
+          item_id: equipped.item_id,
+          slot: equipped.slot,
+          image_url: item?.image_url || equipped.image_url || '',
+          name: item?.name || equipped.name || 'Unknown Item'
+        });
       });
-
-      if (!response.ok) {
-        throw new Error(`Failed to save outfit: ${response.status}`);
-      }
-
-      const result = await response.json();
       
-      console.log('✅ Outfit saved successfully:', result.outfitName);
+      // Then, add or replace with newly selected items
+      Object.entries(selectedItemsForOutfit).forEach(([slot, itemId]) => {
+        const allItems = bunnyInventory?.inventory || [];
+        const inventoryItem = allItems.find(i => i.item?.id === itemId);
+        const item = inventoryItem?.item;
+        
+        if (item) {
+          // Remove any existing item in this slot
+          const existingIndex = allOutfitItems.findIndex(outfitItem => outfitItem.slot === slot);
+          if (existingIndex >= 0) {
+            allOutfitItems[existingIndex] = {
+              item_id: item.id,
+              slot: slot,
+              image_url: item.image_url || '',
+              name: item.name || 'Unknown Item'
+            };
+          } else {
+            allOutfitItems.push({
+              item_id: item.id,
+              slot: slot,
+              image_url: item.image_url || '',
+              name: item.name || 'Unknown Item'
+            });
+          }
+        }
+      });
+      
+      const selectedItems = allOutfitItems;
+
+      console.log('🎨 Selected items for outfit:', selectedItemsForOutfit);
+      console.log('🎨 Built selected items array:', selectedItems);
+      console.log('🎨 Queueing outfit generation with', selectedItems.length, 'selected items:', selectedItems.map(i => i.name));
+
+      // Generate user-friendly look name
+      const itemTypes = selectedItems.map(i => i.name).join(' + ');
+      const timestamp = new Date().toLocaleString('en-US', { 
+        month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true 
+      });
+      const outfitName = `${itemTypes} Look (${timestamp})`;
+      
+      // Use queue system for proper notifications
+      const jobId = queueOutfitGeneration(outfitName, selectedItems);
+      console.log('🎨 Outfit queued for generation, job ID:', jobId);
+      
+      // Clear selection immediately - outfit is now queued
       setHasUnsavedChanges(false);
+      setSelectedItemsForOutfit({});
       
-      // Reload saved outfits and daily usage
+      // Refresh saved outfits list
       await loadSavedOutfits();
-      await loadDailyUsage();
       
-      // Dispatch event to force bunny regeneration with the saved outfit
-      window.dispatchEvent(new CustomEvent('bunny-equipment-changed'));
+      // DON'T trigger bunny update yet - user will apply outfit when they accept notification
+      
       
     } catch (err: any) {
-      setError('Unable to save outfit');
-      console.error('Error saving outfit:', err);
+      setError(err.message || 'Unable to apply look. Please try again.');
+      console.error('Error applying look:', err);
     } finally {
       setSaving(false);
     }
+  };
+
+  // Apply items directly to bunny equipment
+  const applyItemsToBunny = async (items: any[]) => {
+    const { InventoryService } = await import('../lib/inventoryService');
+    
+    console.log('🔧 Applying items to bunny equipment...');
+    
+    // First unequip conflicting slots
+    for (const item of items) {
+      const currentEquipped = bunnyInventory?.equipment[item.slot];
+      if (currentEquipped) {
+        await InventoryService.unequipSlot(bunnyState.id, item.slot as any);
+      }
+    }
+    
+    // Then equip new items
+    for (const item of items) {
+      await InventoryService.equipItem(bunnyState.id, item.item_id);
+    }
+    
+    // Refresh inventory
+    await loadInventory();
+    
+    console.log('✅ Items applied to bunny');
   };
 
   const activateOutfit = async (outfitId: string) => {
@@ -381,7 +477,7 @@ export default function Wardrobe({ className = '', bunnyImageUrl }: WardrobeProp
   const getSlotItems = () => {
     if (!bunnyInventory) return [];
     return bunnyInventory.inventory
-      .filter(inv => inv.item?.slot === selectedSlot)
+      .filter(inv => inv.item?.slot === (selectedItemType as SlotType))
       .sort((a, b) => {
         // Put equipped item first
         const aEquipped = isEquipped(a.item?.id || '');
@@ -438,51 +534,81 @@ export default function Wardrobe({ className = '', bunnyImageUrl }: WardrobeProp
 
   return (
     <div className={`space-y-4 ${className}`}>
-      {/* Quick Mode Toggle */}
-      <div className="flex gap-1 bg-white/30 rounded-lg p-0.5 mb-2">
-        <button
-          onClick={() => setShowMode('items')}
-          className={`flex-1 py-1.5 px-2 rounded-md text-xs font-medium transition-colors ${
-            showMode === 'items'
-              ? 'bg-white text-purple-800 shadow-sm'
-              : 'text-purple-700 hover:bg-white/20'
-          }`}
-        >
-          Items
-        </button>
+      {/* Main Tab Navigation */}
+      <div className="flex gap-1 mb-2 bg-white/30 rounded-xl p-1">
         <button
           onClick={() => setShowMode('outfits')}
-          className={`flex-1 py-1.5 px-2 rounded-md text-xs font-medium transition-colors ${
+          className={`flex-1 flex flex-col items-center justify-center h-8 rounded-lg text-xs font-medium transition-colors gap-0 ${
             showMode === 'outfits'
               ? 'bg-white text-purple-800 shadow-sm'
               : 'text-purple-700 hover:bg-white/20'
           }`}
         >
-          Outfits
+          <span className="text-sm">🎨</span>
+          <span className="text-xs leading-tight">Outfits</span>
         </button>
         <button
           onClick={() => setShowMode('favourites')}
-          className={`flex-1 py-1.5 px-2 rounded-md text-xs font-medium transition-colors ${
+          className={`flex-1 flex flex-col items-center justify-center h-8 rounded-lg text-xs font-medium transition-colors gap-0 ${
             showMode === 'favourites'
               ? 'bg-white text-purple-800 shadow-sm'
               : 'text-purple-700 hover:bg-white/20'
           }`}
         >
-          ❤️
+          <span className="text-sm">❤️</span>
+          <span className="text-xs leading-tight">Faves</span>
+        </button>
+        <button
+          onClick={() => setShowMode('items')}
+          className={`flex-1 flex flex-col items-center justify-center h-8 rounded-lg text-xs font-medium transition-colors gap-0 ${
+            showMode === 'items'
+              ? 'bg-white text-purple-800 shadow-sm'
+              : 'text-purple-700 hover:bg-white/20'
+          }`}
+        >
+          <span className="text-sm">🗄️</span>
+          <span className="text-xs leading-tight">Items</span>
         </button>
       </div>
 
-      {/* Compact Daily Usage */}
-      {user && user.id !== 'guest-user' && (
-        <div className="mb-2 p-1.5 bg-blue-50/50 rounded-md">
+      {/* Item Type Sub-tabs (only shown when Items tab is active) */}
+      {showMode === 'items' && (
+        <div className="flex justify-between mb-2 bg-white/20 rounded-xl p-1">
+          {Object.entries(slotInfo).map(([slot, info]) => (
+            <button
+              key={slot}
+              onClick={() => setSelectedItemType(slot as any)}
+              className={`flex-shrink-0 flex items-center justify-center w-12 h-8 rounded-lg text-lg transition-colors ${
+                selectedItemType === slot
+                  ? 'bg-white text-purple-800 shadow-sm'
+                  : 'text-purple-700 hover:bg-white/10'
+              }`}
+            >
+              <span>{info.icon}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Apply Look Section - Always Visible When Ready */}
+      {hasUnsavedChanges && (
+        <div className="p-3 bg-purple-50 border border-purple-200 rounded-lg">
           <div className="flex items-center justify-between">
-            <span className="text-xs text-blue-700">⚡ {dailyUsage.used}/{dailyUsage.limit}</span>
-            <div className="w-16 bg-blue-200 rounded-full h-1">
-              <div 
-                className="bg-blue-600 h-1 rounded-full transition-all duration-300"
-                style={{ width: `${(dailyUsage.used / dailyUsage.limit) * 100}%` }}
-              />
+            <div>
+              <div className="text-sm font-medium text-purple-800 mb-1">
+                ✨ New Look Ready
+              </div>
+              <div className="text-xs text-purple-700">
+                Apply your selected items to update your bunny's appearance
+              </div>
             </div>
+            <button
+              onClick={saveOutfit}
+              disabled={saving}
+              className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
+            >
+              {saving ? '🎨 Generating...' : '✨ Apply Look'}
+            </button>
           </div>
         </div>
       )}
@@ -491,68 +617,56 @@ export default function Wardrobe({ className = '', bunnyImageUrl }: WardrobeProp
       {showMode === 'items' && (
         <div>
           <div>
-            {/* Compact Item Type Selector */}
-            <div className="flex justify-center gap-0.5 bg-white/30 rounded-lg p-0.5 mb-2">
-              {Object.entries(slotInfo).map(([slot, info]) => (
-                <button
-                  key={slot}
-                  onClick={() => setSelectedSlot(slot as SlotType)}
-                  className={`px-2 py-1 rounded-md text-base transition-colors ${
-                    selectedSlot === slot
-                      ? 'bg-white shadow-sm'
-                      : 'hover:bg-white/20'
-                  }`}
-                >
-                  {info.icon}
-                </button>
-              ))}
-            </div>
-            
             {bunnyInventory && bunnyInventory.inventory.length === 0 ? (
               <div className="text-center py-6">
                 <div className="text-3xl mb-2">📦</div>
                 <p className="text-purple-600 text-sm">No items yet</p>
               </div>
             ) : (
-              <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+              <div className="grid grid-cols-2 gap-3 max-h-80 overflow-y-auto">
                 {getSlotItems().map(inv => {
                   const item = inv.item;
                   if (!item) return null;
                   
+                  const isSelectedForOutfit = selectedItemsForOutfit[item.slot] === item.id;
                   const equipped = isEquipped(item.id);
                   
                   return (
-                    <div key={inv.id} className={`border-2 rounded-md p-1.5 text-center min-w-[80px] flex-shrink-0 ${getRarityColor(item.rarity)}`}>
+                    <div key={inv.id} className={`border-2 rounded-xl p-3 text-center ${getRarityColor(item.rarity)} hover:shadow-md transition-all duration-200`}>
                       {item.image_url && (
                         <img 
                           src={item.image_url} 
                           alt={item.name}
-                          className="w-8 h-8 object-cover rounded mx-auto mb-1"
+                          className="w-16 h-16 object-cover rounded-lg mx-auto mb-2"
                         />
                       )}
                       
-                      <div className={`font-medium text-xs ${getRarityTextColor(item.rarity)} mb-1 leading-tight`}>
+                      <div className={`font-medium text-sm ${getRarityTextColor(item.rarity)} mb-2 leading-tight`}>
                         {item.name}
                       </div>
                       
-                      {equipped ? (
-                        <div className="space-y-1">
-                          <div className="text-xs text-green-600 font-medium">✓</div>
+                      {equipped && (
+                        <div className="text-xs text-green-600 font-medium mb-1">✓ Currently Worn</div>
+                      )}
+                      
+                      {isSelectedForOutfit ? (
+                        <div className="space-y-2">
+                          <div className="text-sm text-purple-600 font-medium">✨ Added to Look</div>
                           <button
-                            onClick={() => unequipSlot(item.slot)}
+                            onClick={() => removeItemFromOutfit(item.slot)}
                             disabled={loading}
-                            className="text-xs bg-red-100 text-red-600 px-2 py-1 rounded w-full"
+                            className="text-sm bg-red-100 text-red-600 px-3 py-1.5 rounded-lg w-full hover:bg-red-200 transition-colors"
                           >
-                            Remove
+                            Remove from Look
                           </button>
                         </div>
                       ) : (
                         <button
-                          onClick={() => equipItem(item.id)}
+                          onClick={() => selectItemForOutfit(item.id, item.slot)}
                           disabled={loading}
-                          className="bg-purple-600 text-white px-2 py-1 rounded text-xs font-medium hover:bg-purple-700 w-full"
+                          className="bg-purple-600 text-white px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-purple-700 w-full transition-colors"
                         >
-                          Wear
+                          Add to Look
                         </button>
                       )}
                     </div>
@@ -564,46 +678,11 @@ export default function Wardrobe({ className = '', bunnyImageUrl }: WardrobeProp
             {getSlotItems().length > 0 && (
               <div className="text-center mt-3">
                 <p className="text-xs text-purple-600">
-                  {getSlotItems().length} {slotInfo[selectedSlot].name.toLowerCase()} item{getSlotItems().length !== 1 ? 's' : ''} • Swipe to browse →
+                  {getSlotItems().length} {slotInfo[selectedItemType as SlotType].name.toLowerCase()} item{getSlotItems().length !== 1 ? 's' : ''}
                 </p>
               </div>
             )}
           </div>
-          
-          {/* Save Outfit Section */}
-      {hasUnsavedChanges && (
-        <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="text-sm font-medium text-yellow-800 mb-1">
-                👔 Outfit Ready to Save
-              </div>
-              <div className="text-xs text-yellow-700">
-                Save your outfit to generate the bunny image and preserve this look
-              </div>
-            </div>
-            <button
-              onClick={saveOutfit}
-              disabled={saving}
-              className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
-            >
-              {saving ? '💫 Saving...' : '💾 Save Outfit'}
-            </button>
-          </div>
-        </div>
-      )}
-
-          {bunnyInventory && bunnyInventory.inventory.length === 0 && (
-            <div className="text-center py-6 mt-4">
-              <div className="text-3xl mb-2">📦</div>
-              <p className="text-sm text-gray-600">
-                Your wardrobe is empty
-              </p>
-              <p className="text-xs text-gray-500 mt-1">
-                Complete adventures and earn coins to buy new clothes!
-              </p>
-            </div>
-          )}
         </div>
       )}
 
@@ -627,9 +706,6 @@ export default function Wardrobe({ className = '', bunnyImageUrl }: WardrobeProp
               </div>
             ) : (
               <div>
-                <h3 className="text-lg font-semibold text-purple-700 mb-4">
-                  🎨 Outfit Gallery ({generatedOutfits.length})
-                </h3>
                 <div className="grid grid-cols-2 gap-4 max-h-80 overflow-y-auto">
                   {generatedOutfits.map((outfit) => (
                     <div key={outfit.key} className="relative group">
@@ -646,42 +722,36 @@ export default function Wardrobe({ className = '', bunnyImageUrl }: WardrobeProp
                           }}
                         />
                         
-                        {/* Favourite heart button */}
+                        {/* Wear button - top left */}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            switchToOutfit(outfit);
+                          }}
+                          className="absolute top-2 left-2 z-10 bg-purple-600 text-white px-2 py-1 rounded-lg text-xs font-medium hover:bg-purple-700 shadow-md"
+                        >
+                          Wear
+                        </button>
+
+                        {/* Favourite heart button - top right */}
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
                             toggleFavourite(outfit.key);
                           }}
-                          className="absolute top-2 right-2 z-10 p-2 rounded-full bg-black/50 hover:bg-black/70 transition-colors"
+                          className="absolute top-2 right-2 z-10 p-1.5 rounded-full bg-black/50 hover:bg-black/70 transition-colors"
                         >
-                          <span className={`text-lg ${
+                          <span className={`text-sm ${
                             isFavourite(outfit.key) ? 'text-red-500' : 'text-white/70'
                           }`}>
                             {isFavourite(outfit.key) ? '❤️' : '🤍'}
                           </span>
                         </button>
                         
-                        {/* Outfit info overlay - always visible on mobile */}
-                        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-3">
-                          <div className="text-white text-sm font-medium truncate mb-1">
+                        {/* Just outfit name at bottom */}
+                        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-2">
+                          <div className="text-white text-xs font-medium truncate text-center">
                             {outfit.equippedItems.length > 0 ? outfit.equippedItems.join(' + ') : 'Base Bunny'}
-                          </div>
-                          <div className="flex justify-between items-center">
-                            <div className="text-white/80 text-xs">
-                              {outfit.equippedItems.length} item{outfit.equippedItems.length !== 1 ? 's' : ''}
-                              {outfit.hasBlinkFrame && ' • Animated'}
-                            </div>
-                            
-                            {/* Mobile-friendly wear button */}
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                switchToOutfit(outfit);
-                              }}
-                              className="bg-purple-600 text-white px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-purple-700 shadow-md"
-                            >
-                              Wear
-                            </button>
                           </div>
                         </div>
                       </div>
@@ -689,12 +759,6 @@ export default function Wardrobe({ className = '', bunnyImageUrl }: WardrobeProp
                   ))}
                 </div>
                 
-                {/* Gallery details */}
-                <div className="mt-4 text-xs text-gray-600">
-                  <p>• Click any outfit to switch to it instantly</p>
-                  <p>• Gallery shows all your previously generated outfits</p>
-                  <p>• Animated outfits will cycle through their frames automatically</p>
-                </div>
               </div>
             )}
           </div>
@@ -840,8 +904,7 @@ export default function Wardrobe({ className = '', bunnyImageUrl }: WardrobeProp
                 </div>
               </div>
             );
-          })()
-          }
+          })()}
         </div>
       )}
     </div>

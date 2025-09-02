@@ -11,6 +11,7 @@ interface BunnyContextType {
   loading: boolean;
   bunnyImageUrl: string;
   imageGenerating: boolean;
+  imageLoading: boolean;
   performAction: (action: ActionType) => Promise<void>;
   getStatPercentage: (stat: keyof BunnyStats) => number;
   getStatEmoji: (stat: keyof BunnyStats) => string;
@@ -120,10 +121,11 @@ export function BunnyProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [bunnyImageUrl, setBunnyImageUrl] = useState('');
   const [imageGenerating, setImageGenerating] = useState(false);
+  const [imageLoading, setImageLoading] = useState(true);
 
   // Get selected base bunny path
   const getBaseBunnyPath = () => {
-    const selected = localStorage.getItem('selected-base-bunny') || 'base-bunny-transparent.png';
+    const selected = localStorage.getItem('selected-base-bunny') || 'bunny-base.png';
     return `/base-bunnies/${selected}`;
   };
   const { user } = useAuth();
@@ -244,6 +246,7 @@ export function BunnyProvider({ children }: { children: React.ReactNode }) {
         if (equippedItems.length === 0) {
           console.log('📷 No items equipped, using base bunny');
           setBunnyImageUrl(getBaseBunnyPath());
+          setImageLoading(false);
           return;
         }
 
@@ -270,14 +273,17 @@ export function BunnyProvider({ children }: { children: React.ReactNode }) {
             console.log('📷 No existing outfit found, showing base bunny until outfit is generated');
             setBunnyImageUrl(getBaseBunnyPath());
           }
+          setImageLoading(false);
         } catch {
           console.log('📷 Error checking outfit, showing base bunny until outfit is generated');
           setBunnyImageUrl(getBaseBunnyPath());
+          setImageLoading(false);
         }
 
       } catch (error) {
         console.error('Error checking existing outfit:', error);
         setBunnyImageUrl(getBaseBunnyPath());
+        setImageLoading(false);
       }
     };
 
@@ -286,18 +292,53 @@ export function BunnyProvider({ children }: { children: React.ReactNode }) {
 
   // Listen for force regeneration events (now only triggered by outfit saves)
   useEffect(() => {
-    const handleForceRegenerate = () => {
-      console.log('🔄 Received force regenerate event - outfit was saved');
+    const handleForceRegenerate = async (event: any) => {
+      console.log('🔄 Received force regenerate event - outfit was saved', event.detail);
       if (!loading && state.id && !isGenerating) {
-        const event = setTimeout(async () => {
-          await generateBunnyWithCurrentItems();
-        }, 50);
-        return () => clearTimeout(event);
+        // Add delay to ensure database changes have been committed
+        const delay = event.detail?.fromOutfitAcceptance ? 1000 : 100;
+        
+        setTimeout(async () => {
+          try {
+            const { InventoryService } = await import('../lib/inventoryService');
+            const inventoryData = await InventoryService.getBunnyFullInventory(state.id);
+            const updatedEquipment = Object.values(inventoryData.equipment || {}).map(item => item.item_id);
+            setCurrentEquipment(updatedEquipment);
+            console.log('🔄 Updated equipment state after outfit acceptance:', updatedEquipment);
+            
+            // Wait a bit more then regenerate
+            setTimeout(async () => {
+              console.log('🔄 Starting bunny regeneration with new equipment...');
+              await generateBunnyWithCurrentItems();
+            }, 200);
+          } catch (error) {
+            console.error('Failed to refresh equipment:', error);
+            // Still try to regenerate even if equipment refresh fails
+            setTimeout(async () => {
+              await generateBunnyWithCurrentItems();
+            }, 200);
+          }
+        }, delay);
+      }
+    };
+
+    // Handle pre-generated outfit application (no regeneration needed)
+    const handleOutfitApplied = (event: any) => {
+      const { imageUrl } = event.detail;
+      if (imageUrl) {
+        console.log('🎨 Applying pre-generated outfit image:', imageUrl);
+        setBunnyImageUrl(imageUrl);
+        setImageGenerating(false); // Clear any generating state
       }
     };
 
     window.addEventListener('bunny-equipment-changed', handleForceRegenerate);
-    return () => window.removeEventListener('bunny-equipment-changed', handleForceRegenerate);
+    window.addEventListener('bunny-outfit-applied', handleOutfitApplied);
+    
+    return () => {
+      window.removeEventListener('bunny-equipment-changed', handleForceRegenerate);
+      window.removeEventListener('bunny-outfit-applied', handleOutfitApplied);
+    };
   }, [state.id, loading, isGenerating]);
 
   const performAction = async (action: ActionType) => {
@@ -508,6 +549,7 @@ export function BunnyProvider({ children }: { children: React.ReactNode }) {
     bunnyImageUrl,
     loading,
     imageGenerating,
+    imageLoading,
     performAction,
     getStatPercentage,
     getStatEmoji,

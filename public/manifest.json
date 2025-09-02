@@ -1,0 +1,42 @@
+{
+  "name": "Bunny Tamagotchi",
+  "short_name": "Bunny",
+  "description": "Your magical AI bunny companion with personality and style",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f3e8ff",
+  "theme_color": "#9333ea",
+  "orientation": "portrait",
+  "scope": "/",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable any"
+    },
+    {
+      "src": "/icon-512.png", 
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable any"
+    }
+  ],
+  "categories": ["games", "entertainment", "lifestyle"],
+  "shortcuts": [
+    {
+      "name": "Feed Bunny",
+      "short_name": "Feed",
+      "description": "Feed your bunny companion",
+      "url": "/?action=feed",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Chat with Bunny", 
+      "short_name": "Chat",
+      "description": "Have a conversation with your bunny",
+      "url": "/?tab=chat",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    }
+  ]
+}

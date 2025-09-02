@@ -13,9 +13,18 @@ interface ChatMessage {
 interface BunnyChatProps {
   bunnyContext: BunnyContext;
   className?: string;
+  performAction?: (action: any) => Promise<void>;
+  showActionButtons?: boolean;
+  personality?: any;
+  onPersonalityChange?: (personality: any) => void;
 }
 
-export default function BunnyChat({ bunnyContext, className }: BunnyChatProps) {
+export default function BunnyChat({ 
+  bunnyContext, 
+  className,
+  performAction,
+  showActionButtons = false
+}: BunnyChatProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputMessage, setInputMessage] = useState('');
   const [isTyping, setIsTyping] = useState(false);
@@ -144,23 +153,23 @@ export default function BunnyChat({ bunnyContext, className }: BunnyChatProps) {
   };
 
   return (
-    <div className={`flex flex-col h-full bg-gradient-to-b from-purple-50 to-pink-50 ${className}`}>
+    <div className={`flex flex-col h-full max-h-full bg-gradient-to-b from-purple-50 to-pink-50 ${className}`} style={{ maxHeight: '100%' }}>
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      <div className="flex-1 overflow-y-auto p-2 space-y-1 min-h-0">
         {messages.map((message) => (
           <div
             key={message.id}
             className={`flex ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`}
           >
             <div
-              className={`max-w-[80%] rounded-2xl px-4 py-2 ${
+              className={`max-w-[85%] rounded-xl px-3 py-1.5 ${
                 message.sender === 'user'
                   ? 'bg-purple-600 text-white'
                   : 'bg-white/80 backdrop-blur-sm text-purple-800 border border-purple-200'
               }`}
             >
-              <p className="text-sm whitespace-pre-wrap">{message.content}</p>
-              <p className={`text-xs mt-1 ${
+              <p className="text-xs whitespace-pre-wrap leading-relaxed">{message.content}</p>
+              <p className={`text-xs mt-0.5 opacity-70 ${
                 message.sender === 'user' ? 'text-purple-200' : 'text-purple-500'
               }`}>
                 {formatTime(message.timestamp)}
@@ -172,10 +181,10 @@ export default function BunnyChat({ bunnyContext, className }: BunnyChatProps) {
         {/* Typing indicator */}
         {isTyping && (
           <div className="flex justify-start">
-            <div className="bg-white/80 backdrop-blur-sm text-purple-800 border border-purple-200 rounded-2xl px-4 py-2">
+            <div className="bg-white/80 backdrop-blur-sm text-purple-800 border border-purple-200 rounded-xl px-3 py-1.5">
               <div className="flex items-center gap-1">
-                <span className="text-sm">{bunnyContext.name} is typing</span>
-                <div className="flex gap-1">
+                <span className="text-xs">{bunnyContext.name} is typing</span>
+                <div className="flex gap-0.5">
                   <div className="w-1 h-1 bg-purple-400 rounded-full animate-bounce" style={{animationDelay: '0ms'}}></div>
                   <div className="w-1 h-1 bg-purple-400 rounded-full animate-bounce" style={{animationDelay: '150ms'}}></div>
                   <div className="w-1 h-1 bg-purple-400 rounded-full animate-bounce" style={{animationDelay: '300ms'}}></div>
@@ -188,8 +197,44 @@ export default function BunnyChat({ bunnyContext, className }: BunnyChatProps) {
         <div ref={messagesEndRef} />
       </div>
 
+      {/* Care Action Buttons */}
+      {showActionButtons && performAction && (
+        <div className="bg-white/60 backdrop-blur-sm border-t border-purple-200 p-1.5 flex-shrink-0">
+          <div className="grid grid-cols-4 gap-1.5">
+            <button 
+              onClick={() => performAction('feed')}
+              className="flex flex-col items-center gap-0.5 bg-white/80 hover:bg-white rounded-lg py-1.5 px-1 text-purple-800 font-medium transition-colors text-xs"
+            >
+              <span className="text-base">🥕</span>
+              <span className="text-xs">Feed</span>
+            </button>
+            <button 
+              onClick={() => performAction('play')}
+              className="flex flex-col items-center gap-0.5 bg-white/80 hover:bg-white rounded-lg py-1.5 px-1 text-purple-800 font-medium transition-colors text-xs"
+            >
+              <span className="text-base">🎮</span>
+              <span className="text-xs">Play</span>
+            </button>
+            <button 
+              onClick={() => performAction('sleep')}
+              className="flex flex-col items-center gap-0.5 bg-white/80 hover:bg-white rounded-lg py-1.5 px-1 text-purple-800 font-medium transition-colors text-xs"
+            >
+              <span className="text-base">💤</span>
+              <span className="text-xs">Sleep</span>
+            </button>
+            <button 
+              onClick={() => performAction('clean')}
+              className="flex flex-col items-center gap-0.5 bg-white/80 hover:bg-white rounded-lg py-1.5 px-1 text-purple-800 font-medium transition-colors text-xs"
+            >
+              <span className="text-base">🧼</span>
+              <span className="text-xs">Clean</span>
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Input */}
-      <div className="bg-white/80 backdrop-blur-sm border-t border-purple-200 p-4">
+      <div className="bg-white/80 backdrop-blur-sm border-t border-purple-200 p-1.5 flex-shrink-0">
         <div className="flex gap-2">
           <input
             ref={inputRef}
@@ -199,39 +244,14 @@ export default function BunnyChat({ bunnyContext, className }: BunnyChatProps) {
             onKeyPress={handleKeyPress}
             placeholder={`Chat with ${bunnyContext.name}...`}
             disabled={isLoading}
-            className="flex-1 bg-white/80 border border-purple-300 rounded-full px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-transparent disabled:opacity-50"
+            className="flex-1 bg-white/80 border border-purple-300 rounded-full px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-transparent disabled:opacity-50"
           />
           <button
             onClick={sendMessage}
             disabled={!inputMessage.trim() || isLoading}
-            className="bg-purple-600 text-white rounded-full px-6 py-2 text-sm font-medium hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-400 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="bg-purple-600 text-white rounded-full px-4 py-1.5 text-xs font-medium hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-400 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {isLoading ? '⏳' : 'Send'}
-          </button>
-        </div>
-        
-        {/* Quick actions */}
-        <div className="flex gap-2 mt-3">
-          <button
-            onClick={() => setInputMessage("How are you feeling?")}
-            disabled={isLoading}
-            className="text-xs bg-purple-100 text-purple-700 px-3 py-1 rounded-full hover:bg-purple-200 disabled:opacity-50"
-          >
-            How are you feeling?
-          </button>
-          <button
-            onClick={() => setInputMessage("Tell me about your outfit")}
-            disabled={isLoading}
-            className="text-xs bg-purple-100 text-purple-700 px-3 py-1 rounded-full hover:bg-purple-200 disabled:opacity-50"
-          >
-            Tell me about your outfit
-          </button>
-          <button
-            onClick={() => setInputMessage("What should we do today?")}
-            disabled={isLoading}
-            className="text-xs bg-purple-100 text-purple-700 px-3 py-1 rounded-full hover:bg-purple-200 disabled:opacity-50"
-          >
-            What should we do?
           </button>
         </div>
       </div>

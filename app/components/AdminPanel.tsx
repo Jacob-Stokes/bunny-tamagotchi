@@ -603,13 +603,13 @@ export default function AdminPanel() {
   }
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50 overflow-y-auto">
-      <div className="bg-white rounded-2xl p-6 max-w-6xl w-full max-h-[90vh] overflow-y-auto">
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="text-2xl font-bold text-red-800">⚙️ Admin Item Management</h2>
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-start justify-center p-2 z-50 overflow-y-auto">
+      <div className="bg-white rounded-2xl p-4 w-full max-w-lg max-h-[95vh] overflow-y-auto mt-2">
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-lg font-bold text-red-800">⚙️ Admin</h2>
           <button
             onClick={() => setIsOpen(false)}
-            className="text-gray-500 hover:text-gray-700 text-2xl"
+            className="text-gray-500 hover:text-gray-700 text-xl bg-gray-100 hover:bg-gray-200 rounded-full w-8 h-8 flex items-center justify-center"
           >
             ×
           </button>
@@ -624,10 +624,10 @@ export default function AdminPanel() {
         {!showAddForm ? (
           <div>
             {/* Navigation Tabs */}
-            <div className="mb-6 flex gap-2 flex-wrap">
+            <div className="mb-4 space-y-2">
               <button
                 onClick={() => { setShowBaseBunnySection(false); setShowSceneSection(false); setShowGeneratedOutfits(false); }}
-                className={`px-4 py-2 rounded-lg font-medium ${!showBaseBunnySection && !showSceneSection && !showGeneratedOutfits
+                className={`w-full px-3 py-2 rounded-lg font-medium text-sm ${!showBaseBunnySection && !showSceneSection && !showGeneratedOutfits
                   ? 'bg-red-600 text-white' 
                   : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
               >
@@ -635,7 +635,7 @@ export default function AdminPanel() {
               </button>
               <button
                 onClick={() => { setShowBaseBunnySection(true); setShowSceneSection(false); setShowGeneratedOutfits(false); }}
-                className={`px-4 py-2 rounded-lg font-medium ${showBaseBunnySection && !showSceneSection && !showGeneratedOutfits
+                className={`w-full px-3 py-2 rounded-lg font-medium text-sm ${showBaseBunnySection && !showSceneSection && !showGeneratedOutfits
                   ? 'bg-red-600 text-white' 
                   : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
               >
@@ -643,7 +643,7 @@ export default function AdminPanel() {
               </button>
               <button
                 onClick={() => { setShowBaseBunnySection(false); setShowSceneSection(true); setShowGeneratedOutfits(false); }}
-                className={`px-4 py-2 rounded-lg font-medium ${showSceneSection && !showGeneratedOutfits
+                className={`w-full px-3 py-2 rounded-lg font-medium text-sm ${showSceneSection && !showGeneratedOutfits
                   ? 'bg-red-600 text-white' 
                   : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
               >
@@ -651,17 +651,11 @@ export default function AdminPanel() {
               </button>
               <button
                 onClick={() => { setShowBaseBunnySection(false); setShowSceneSection(false); setShowGeneratedOutfits(true); }}
-                className={`px-4 py-2 rounded-lg font-medium ${showGeneratedOutfits
+                className={`w-full px-3 py-2 rounded-lg font-medium text-sm ${showGeneratedOutfits
                   ? 'bg-red-600 text-white' 
                   : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
               >
                 🎨 Generated Outfits
-              </button>
-              <button
-                onClick={() => window.dispatchEvent(new CustomEvent('toggle-admin-debug'))}
-                className="px-4 py-2 rounded-lg font-medium bg-orange-600 text-white hover:bg-orange-700"
-              >
-                🎮 Animation Debug
               </button>
             </div>
 

@@ -22,6 +22,7 @@ export default function AnimatedBunny({ bunnyImageUrl, className, alt = "Bunny",
   const [translateY, setTranslateY] = useState(0);
   const [scale, setScale] = useState(1);
   const [isRunning, setIsRunning] = useState(false);
+  const [isChangingOutfit, setIsChangingOutfit] = useState(false);
 
   // Check if animation frames exist
   useEffect(() => {
@@ -321,6 +322,31 @@ export default function AnimatedBunny({ bunnyImageUrl, className, alt = "Bunny",
       triggerAnimation(animationType);
     }, 100);
   }, [debugTrigger]);
+
+  // Listen for outfit generation events
+  useEffect(() => {
+    const handleOutfitGenerationStart = () => {
+      console.log('👗 Outfit generation started - triggering zoom out animation');
+      triggerAnimation('outfit_change');
+    };
+
+    const handleOutfitGeneration = (event: any) => {
+      console.log('👗 Outfit generation event received:', event.detail);
+      if (event.detail.fromOutfitAcceptance) {
+        // Don't trigger animation for outfit acceptance, it's already pre-generated
+        return;
+      }
+      triggerAnimation('outfit_change');
+    };
+
+    window.addEventListener('outfit-generation-start', handleOutfitGenerationStart);
+    window.addEventListener('bunny-outfit-applied', handleOutfitGeneration);
+
+    return () => {
+      window.removeEventListener('outfit-generation-start', handleOutfitGenerationStart);
+      window.removeEventListener('bunny-outfit-applied', handleOutfitGeneration);
+    };
+  }, []);
 
   const triggerAnimation = (animationType: string) => {
     console.log('🎯 Executing triggerAnimation for:', animationType);
@@ -632,6 +658,32 @@ export default function AnimatedBunny({ bunnyImageUrl, className, alt = "Bunny",
           setIsWaving(true);
           setTimeout(() => setIsWaving(false), 800);
         }
+        break;
+      case 'outfit_change':
+        console.log('👗 Outfit change animation - run off screen to change!');
+        setIsChangingOutfit(true);
+        
+        // Choose random direction (left or right)
+        const runLeft = Math.random() < 0.5;
+        console.log('🏃 Running off screen -', runLeft ? 'left' : 'right');
+        
+        // Phase 1: Run off screen
+        setTranslateX(runLeft ? -400 : 400);
+        
+        setTimeout(() => {
+          // Phase 2: Teleport to opposite side (off screen)
+          setTranslateX(runLeft ? 400 : -400);
+          
+          // Phase 3: Run back on screen with new outfit and smile
+          setTimeout(() => {
+            setTranslateX(0);
+            if (hasSmileFrame) {
+              setIsSmiling(true);
+              setTimeout(() => setIsSmiling(false), 1000);
+            }
+            setIsChangingOutfit(false);
+          }, 100);
+        }, 800);
         break;
     }
   };

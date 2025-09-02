@@ -5,7 +5,13 @@ import GeminiImageService from '../../lib/geminiImageService';
 
 export async function POST(request: NextRequest) {
   try {
-    const scenes = ['meadow', 'forest', 'beach', 'garden', 'snowy', 'space', 'library', 'cafe'];
+    const body = await request.json().catch(() => ({}));
+    const requestedSceneId = body.sceneId;
+    
+    const scenes = requestedSceneId 
+      ? [requestedSceneId] 
+      : ['meadow', 'forest', 'beach', 'garden', 'snowy', 'space', 'library', 'cafe'];
+    
     const scenesDir = path.join(process.cwd(), 'public', 'scenes');
     
     // Create scenes directory

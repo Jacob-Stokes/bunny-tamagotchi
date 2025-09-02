@@ -4,8 +4,9 @@ import { OutfitService } from '../../lib/outfitService';
 import { supabase } from '../../lib/supabase';
 
 interface SaveOutfitRequest {
-  bunnyId: string;
-  equippedItems: Array<{
+  bunny_id: string;
+  outfit_name: string;
+  selected_items: Array<{
     item_id: string;
     slot: string;
     image_url: string;
@@ -13,16 +14,78 @@ interface SaveOutfitRequest {
   }>;
 }
 
+// Verify that all generated images actually exist
+async function verifyGeneratedImages(selected_items: Array<{ item_id: string; slot: string; name: string }>, selectedBaseBunny: string) {
+  const fs = require('fs').promises;
+  const path = require('path');
+  const { CacheUtils } = await import('../../lib/cacheUtils');
+  
+  // Convert to EquippedItem format for cache key generation
+  const equippedItems = selected_items.map(item => ({
+    item_id: item.item_id,
+    slot: item.slot,
+    image_url: '',
+    name: item.name
+  }));
+  
+  const cacheKey = CacheUtils.getBunnyItemsCacheKey(equippedItems, selectedBaseBunny);
+  
+  const publicDir = path.join(process.cwd(), 'public');
+  const bunnyDir = path.join(publicDir, 'generated-bunnies', cacheKey);
+  
+  const requiredImages = ['normal.png', 'blink.png', 'smile.png', 'wave.png'];
+  
+  for (const imageName of requiredImages) {
+    const imagePath = path.join(bunnyDir, imageName);
+    try {
+      await fs.access(imagePath);
+      console.log(`✅ Verified ${imageName} exists at ${cacheKey}/${imageName}`);
+    } catch (error) {
+      throw new Error(`Generated image ${imageName} does not exist at ${imagePath}`);
+    }
+  }
+  
+  console.log(`✅ All generated images verified for cache key: ${cacheKey}`);
+  return cacheKey;
+}
+
+// Apply outfit to bunny (equip all items)
+async function applyOutfitToBunny(bunny_id: string, selected_items: Array<{ item_id: string; slot: string; name: string }>) {
+  const { InventoryService } = await import('../../lib/inventoryService');
+  
+  // First, unequip all current items
+  const currentInventory = await InventoryService.getBunnyFullInventory(bunny_id);
+  const currentSlots = Object.keys(currentInventory.equipment || {});
+  
+  console.log('🔧 Unequipping current items:', currentSlots);
+  for (const slot of currentSlots) {
+    await InventoryService.unequipSlot(bunny_id, slot as any);
+  }
+  
+  // Debug: check what's in the bunny's inventory
+  const fullInventory = await InventoryService.getBunnyFullInventory(bunny_id);
+  console.log('🔧 Debug - Full inventory count:', fullInventory.inventory?.length || 0);
+  console.log('🔧 Debug - Inventory item IDs:', fullInventory.inventory?.map(i => i.item?.id) || []);
+
+  // Then equip all new items
+  console.log('🔧 Equipping new items:', selected_items.map(i => `${i.name} (${i.item_id})`));
+  for (const item of selected_items) {
+    await InventoryService.equipItem(bunny_id, item.item_id);
+  }
+  
+  console.log('✅ Outfit applied to bunny');
+}
+
 export async function POST(request: NextRequest) {
-  console.log('🎨 Save outfit API called');
+  console.log('🎨 Outfit generation API called from queue');
   
   try {
     const body: SaveOutfitRequest = await request.json();
-    const { bunnyId, equippedItems } = body;
+    const { bunny_id, outfit_name, selected_items } = body;
 
-    // For now, skip auth check and use bunnyId as user identifier
+    // For now, skip auth check and use bunny_id as user identifier
     // TODO: Implement proper auth when needed
-    const userId = bunnyId; // Use bunnyId as user identifier for now
+    const userId = bunny_id; // Use bunny_id as user identifier for now
     
     // Check daily limit before allowing outfit generation  
     try {
@@ -37,11 +100,11 @@ export async function POST(request: NextRequest) {
       console.warn('⚠️ Daily limit check failed, allowing request:', limitError);
     }
 
-    console.log('🎨 Saving outfit for bunny:', bunnyId, 'with items:', equippedItems.length);
+    console.log('🎨 Generating outfit for bunny:', bunny_id, 'with items:', selected_items.length);
 
-    if (!bunnyId) {
-      console.error('❌ Missing bunnyId');
-      return NextResponse.json({ error: 'Missing bunnyId' }, { status: 400 });
+    if (!bunny_id || !outfit_name) {
+      console.error('❌ Missing bunny_id or outfit_name');
+      return NextResponse.json({ error: 'Missing bunny_id or outfit_name' }, { status: 400 });
     }
 
     // Get settings
@@ -50,14 +113,13 @@ export async function POST(request: NextRequest) {
 
     console.log(`🎨 Using base bunny: ${selectedBaseBunny}, scene: ${selectedScene}`);
 
-    // Generate outfit name using AI
-    const outfitName = await generateOutfitNameWithAI(equippedItems);
-    console.log(`🎨 Generated outfit name: ${outfitName}`);
+    // Use the provided outfit name instead of generating one
+    console.log(`🎨 Using outfit name: ${outfit_name}`);
 
     // Generate bunny with equipment by calling the existing generation API
     console.log('🎨 Generating bunny images with equipment...');
     
-    const response = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3001'}/api/generate-bunny-image`, {
+    const response = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/generate-bunny-image`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -65,21 +127,25 @@ export async function POST(request: NextRequest) {
         'x-scene': selectedScene,
       },
       body: JSON.stringify({ 
-        bunnyId,
-        equippedItems,
+        bunnyId: bunny_id,
+        equippedItems: selected_items,
         generateAnimation: true,
         forceRegenerate: true
       }),
     });
 
-    if (!response.ok) {
-      throw new Error(`Generation failed: ${response.status}`);
-    }
-
     const result = await response.json();
+    
+    if (!response.ok) {
+      throw new Error(`Gemini generation failed: ${result.error || response.status}`);
+    }
+    
+    // Verify all images actually exist before proceeding
+    console.log('🔍 Verifying generated images exist...');
+    const cacheKey = await verifyGeneratedImages(selected_items, selectedBaseBunny);
 
-    // Prepare image URLs for outfit storage
-    const baseImagePath = `/generated-bunnies/${bunnyId}`;
+    // Prepare image URLs for outfit storage using the correct cache key
+    const baseImagePath = `/generated-bunnies/${cacheKey}`;
     const imageUrls = {
       normal: `${baseImagePath}/normal.png`,
       blink: `${baseImagePath}/blink.png`,
@@ -87,16 +153,19 @@ export async function POST(request: NextRequest) {
       wave: `${baseImagePath}/wave.png`
     };
 
-    // Save outfit to database
+    // Save outfit to database (DON'T apply it to bunny yet - user decides later)
     console.log('💾 Saving outfit to database...');
     const outfit = await OutfitService.createOutfit({
-      bunny_id: bunnyId,
-      name: outfitName,
-      equipped_items: equippedItems,
+      bunny_id: bunny_id,
+      name: outfit_name,
+      equipped_items: selected_items,
       base_bunny: selectedBaseBunny,
       scene: selectedScene,
       image_urls: imageUrls
     });
+
+    // DON'T apply outfit yet - user will apply it when they accept the notification
+    console.log('✅ Outfit generated and saved - waiting for user to apply it');
 
     // Increment daily usage counter after successful generation
     try {
@@ -107,14 +176,17 @@ export async function POST(request: NextRequest) {
       // Don't fail the whole request if counter fails
     }
 
-    console.log('✅ Outfit saved successfully with images generated');
+    console.log('✅ Outfit generated, images verified, and applied to bunny successfully!');
 
     return NextResponse.json({
       success: true,
-      outfitId: outfit.id,
-      outfitName: outfit.name,
-      imageUrl: result.imageUrl,
-      message: 'Outfit saved and images generated successfully'
+      status: 'completed', // Add explicit status
+      outfit_id: outfit.id,
+      outfit_name: outfit.name,
+      bunny_image_url: result.imageUrl,
+      images_verified: true,
+      equipment_applied: false,
+      message: 'Outfit generated - ready for user to apply'
     });
 
   } catch (error) {

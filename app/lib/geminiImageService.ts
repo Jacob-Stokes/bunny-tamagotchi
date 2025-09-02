@@ -892,6 +892,11 @@ TECHNICAL REQUIREMENTS:
       throw new Error('Gemini API key not configured');
     }
 
+    // Special handling for meadow-wide - extend the existing meadow
+    if (sceneId === 'meadow-wide') {
+      return await this.generateExtendedMeadow();
+    }
+
     const sceneDescription = this.getSceneDescription(sceneId);
     const prompt = `Create a pixel art background scene: ${sceneDescription}. No characters, just the environment. Pixel art style, 16-bit game aesthetic.`;
 
@@ -912,6 +917,56 @@ TECHNICAL REQUIREMENTS:
       return null;
     } catch (error) {
       console.error('Error generating scene background:', error);
+      return null;
+    }
+  }
+
+  // Generate extended meadow that preserves the original design
+  async generateExtendedMeadow(): Promise<{ imageData: Buffer; mimeType: string } | null> {
+    try {
+      // Load the original meadow
+      const originalMeadowPath = path.join(process.cwd(), 'public', 'scenes', 'meadow.png');
+      const originalMeadowBase64 = await this.fileToBase64(originalMeadowPath);
+
+      const prompt = `Take the meadow scene from the image and extend it horizontally to create a wider version that maintains the exact same style, colors, and design elements. 
+
+CRITICAL REQUIREMENTS:
+- Keep the EXACT same pixel art style, colors, and aesthetic
+- Preserve the same blue sky with white clouds
+- Extend the green grass field naturally to the sides
+- Keep the same trees and maintain their placement style
+- Add the same colorful wildflowers (red, blue, yellow) scattered naturally
+- Maintain the same peaceful, cheerful atmosphere
+- The final image should be wider (5:4 aspect ratio, approximately 640x512 pixels)
+- This should look like the original meadow scene was simply extended sideways, not recreated
+
+Make it look like you took the original square meadow and added more meadow on both sides using the exact same art style and elements.`;
+
+      const model = this.genAI.getGenerativeModel({ model: 'gemini-2.5-flash-image-preview' });
+      const response = await model.generateContent([
+        {
+          inlineData: {
+            data: originalMeadowBase64,
+            mimeType: 'image/png'
+          }
+        },
+        { text: prompt }
+      ]);
+      
+      if (response.response.candidates?.[0]?.content?.parts) {
+        for (const part of response.response.candidates[0].content.parts) {
+          if (part.inlineData?.data && part.inlineData?.mimeType?.startsWith('image/')) {
+            console.log('🟡 Extended meadow generated successfully');
+            return {
+              imageData: Buffer.from(part.inlineData.data, 'base64'),
+              mimeType: part.inlineData.mimeType
+            };
+          }
+        }
+      }
+      return null;
+    } catch (error) {
+      console.error('Error generating extended meadow:', error);
       return null;
     }
   }
