@@ -298,13 +298,42 @@ export default function ActionsTabs({
             <h2 className="text-lg font-semibold text-purple-700 mb-3 text-center">
               Explore Adventures
             </h2>
-            <div className="text-center py-8">
-              <div className="text-4xl mb-3">⚔️</div>
-              <p className="text-purple-600 text-sm">
-                Adventure system coming soon!
-                <br />
-                Go on quests and discover new places
-              </p>
+            <div className="space-y-4">
+              {/* Bunny Hop Game */}
+              <div className="bg-white/80 backdrop-blur-sm rounded-xl p-4 border border-purple-200">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-3">
+                    <div className="text-2xl">🐰</div>
+                    <div>
+                      <h3 className="font-semibold text-purple-800">Bunny Hop</h3>
+                      <p className="text-xs text-purple-600">Test your hopping skills!</p>
+                    </div>
+                  </div>
+                </div>
+                <p className="text-xs text-purple-600 mb-3">
+                  Navigate through obstacles in this aerial adventure. Tap to hop and avoid the pipes!
+                </p>
+                <button
+                  onClick={() => onTriggerAnimation?.('start-bunny-hop-game')}
+                  className="w-full bg-gradient-to-r from-purple-600 to-pink-600 text-white py-2 px-4 rounded-lg text-sm font-medium hover:from-purple-700 hover:to-pink-700 transition-colors"
+                >
+                  🎮 Start Bunny Hop
+                </button>
+              </div>
+
+              {/* Future Adventures Placeholder */}
+              <div className="bg-white/40 backdrop-blur-sm rounded-xl p-4 border border-purple-200">
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="text-2xl opacity-50">⚔️</div>
+                  <div>
+                    <h3 className="font-semibold text-purple-600 opacity-75">Quest System</h3>
+                    <p className="text-xs text-purple-500 opacity-75">Coming Soon</p>
+                  </div>
+                </div>
+                <p className="text-xs text-purple-500 opacity-75">
+                  Epic quests and treasure hunts await in future updates!
+                </p>
+              </div>
             </div>
           </div>
         )}
