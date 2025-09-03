@@ -33,11 +33,9 @@ export class BunnyService {
         .maybeSingle(); // Use maybeSingle instead of single - returns null if no row, doesn't throw error
 
       if (existing) {
-        console.log('Found existing bunny for user:', userId);
         return existing;
       }
 
-      console.log('No existing bunny found for user:', userId, 'creating new one');
 
       // If no bunny exists, create a new one
       const { data: newBunny, error: createError } = await supabase

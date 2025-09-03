@@ -18,8 +18,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Missing outfitKey' }, { status: 400 });
     }
 
-    console.log('🎯 Selective regeneration for outfit:', outfitKey);
-    console.log('🎯 Actions:', { regenerateBase, regenerateAnimations, removeBackground, forceAll });
 
     // Use different paths for development vs production
     const isProduction = process.env.NODE_ENV === 'production';
@@ -46,7 +44,6 @@ export async function POST(request: NextRequest) {
 
     // If forceAll is true, fall back to existing full regeneration
     if (forceAll) {
-      console.log('🔥 Falling back to full regeneration');
       const response = await fetch(`${request.nextUrl.origin}/api/force-regenerate-outfit`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -64,7 +61,6 @@ export async function POST(request: NextRequest) {
 
     // STEP 1: Regenerate base bunny if requested
     if (regenerateBase) {
-      console.log('🔄 Regenerating base bunny...');
       
       try {
         const geminiService = new GeminiImageServiceClass();
@@ -76,13 +72,11 @@ export async function POST(request: NextRequest) {
         if (bunnyResult) {
           const normalImagePath = path.join(outfitFolderPath, 'normal.png');
           await writeFile(normalImagePath, bunnyResult.imageData);
-          console.log('✅ Base bunny regenerated');
           results.regeneratedBase = true;
           
           // ALWAYS apply background removal to newly generated base (like main pipeline)
           const transparentBuffer = await SceneCompositor.removeWhiteBackground(normalImagePath);
           await writeFile(normalImagePath, transparentBuffer);
-          console.log('✅ Background automatically removed from regenerated base');
           results.backgroundFixed = results.backgroundFixed || [];
           results.backgroundFixed.push('normal');
         } else {
@@ -97,7 +91,6 @@ export async function POST(request: NextRequest) {
 
     // STEP 2: Regenerate specific animation frames if requested
     if (regenerateAnimations.length > 0) {
-      console.log('🎬 Regenerating animation frames:', regenerateAnimations);
       
       try {
         // Load the current normal.png to generate animations from
@@ -114,13 +107,11 @@ export async function POST(request: NextRequest) {
             if (frames[frameType]) {
               const framePath = path.join(outfitFolderPath, `${frameType}.png`);
               await writeFile(framePath, frames[frameType].imageData);
-              console.log(`✅ Regenerated ${frameType} frame`);
               generatedFrames.push(frameType);
               
               // ALWAYS apply background removal to newly generated frames (like main pipeline)
               const transparentBuffer = await SceneCompositor.removeWhiteBackground(framePath);
               await writeFile(framePath, transparentBuffer);
-              console.log(`✅ Background automatically removed from regenerated ${frameType} frame`);
               results.backgroundFixed = results.backgroundFixed || [];
               results.backgroundFixed.push(frameType);
             }
@@ -148,7 +139,6 @@ export async function POST(request: NextRequest) {
     });
 
     if (backgroundOnlyFrames.length > 0) {
-      console.log('🎭 Applying background removal to existing frames:', backgroundOnlyFrames);
       
       const fixedFrames = [];
       
@@ -161,7 +151,6 @@ export async function POST(request: NextRequest) {
           
           const transparentBuffer = await SceneCompositor.removeWhiteBackground(framePath);
           await writeFile(framePath, transparentBuffer);
-          console.log(`✅ Background removed from existing ${frameType} frame`);
           fixedFrames.push(frameType);
         } catch (error) {
           console.error(`❌ Background removal failed for ${frameType}:`, error);
@@ -188,7 +177,6 @@ export async function POST(request: NextRequest) {
 
     await writeFile(metadataPath, JSON.stringify(metadata, null, 2));
 
-    console.log('🎯 Selective regeneration completed:', results);
 
     return NextResponse.json({
       success: true,

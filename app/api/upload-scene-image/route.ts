@@ -35,7 +35,6 @@ export async function POST(request: NextRequest) {
     const buffer = Buffer.from(bytes);
     await writeFile(filePath, buffer);
 
-    console.log(`Scene image uploaded: ${fileName}`);
 
     return NextResponse.json({
       success: true,

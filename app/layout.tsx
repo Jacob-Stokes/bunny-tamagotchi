@@ -50,19 +50,15 @@ export default function RootLayout({
                 window.addEventListener('load', function() {
                   navigator.serviceWorker.register('/sw.js')
                     .then(function(registration) {
-                      console.log('SW registered: ', registration);
                     })
                     .catch(function(registrationError) {
-                      console.log('SW registration failed: ', registrationError);
                     });
                 });
               }
               
               // PWA debug info
               window.addEventListener('beforeinstallprompt', (e) => {
-                console.log('PWA install prompt available!');
                 e.userChoice.then((choiceResult) => {
-                  console.log(choiceResult.outcome);
                 });
               });
 

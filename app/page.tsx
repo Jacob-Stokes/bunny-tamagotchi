@@ -1,10 +1,12 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useBunny } from './context/BunnyContext';
 import { useAuth } from './context/AuthContext';
 import { useNotifications } from './context/NotificationContext';
 import { BunnyPersonalityTraits, BunnyPersonalityService } from './lib/bunnyPersonality';
+import { SlotType } from './types/inventory';
+import { InventoryService } from './lib/inventoryService';
 import AuthModal from './components/AuthModal';
 import AnimatedBunny from './components/BlinkingBunny';
 import ActionsTabs from './components/ActionsTabs';
@@ -19,6 +21,8 @@ export default function Home() {
   const [activeTab, setActiveTab] = useState<'actions' | 'wardrobe' | 'chat' | 'adventure' | 'settings'>('actions');
   const [mounted, setMounted] = useState(false);
   const [showBunnyHopGame, setShowBunnyHopGame] = useState(false);
+  const [wardrobeSelectedItems, setWardrobeSelectedItems] = useState<{[slot: string]: string}>({});
+  const [bunnyInventory, setBunnyInventory] = useState<any>(null);
   
   const tabs = [
     { id: 'actions', label: 'Bunny', icon: '🐰' },
@@ -53,9 +57,24 @@ export default function Home() {
     }
   }, [state, personality]);
 
+  // Load inventory when bunny state changes or image changes (after outfit generation)
+  useEffect(() => {
+    const loadInventory = async () => {
+      if (state?.id) {
+        try {
+          const inventory = await InventoryService.getBunnyFullInventory(state.id);
+          setBunnyInventory(inventory);
+        } catch (error) {
+          console.error('Failed to load inventory:', error);
+        }
+      }
+    };
+    
+    loadInventory();
+  }, [state?.id, bunnyImageUrl]);
+
 
   const handleTriggerAnimation = (animationType: string) => {
-    console.log('🎮 Page: Triggering animation:', animationType);
     
     if (animationType === 'start-bunny-hop-game') {
       setShowBunnyHopGame(true);
@@ -63,15 +82,22 @@ export default function Home() {
     }
     
     const uniqueTrigger = `${animationType}-${Date.now()}`;
-    console.log('🎮 Page: Setting debugTrigger to:', uniqueTrigger);
     setDebugTrigger(uniqueTrigger);
   };
 
   const handleToggleDebugMode = () => {
     const newDebugMode = !debugMode;
     setDebugMode(newDebugMode);
-    console.log('🎮 Debug mode:', newDebugMode ? 'ON (natural animations disabled)' : 'OFF (natural animations enabled)');
   };
+
+  // Stable callback functions to prevent infinite loops
+  const handleWardrobeSelectedItemsChange = useCallback((items: {[slot: string]: string}) => {
+    setWardrobeSelectedItems(items);
+  }, []);
+
+  const handleClearWardrobeChanges = useCallback(() => {
+    setWardrobeSelectedItems({});
+  }, []);
   return (
     <main className="max-w-sm mx-auto px-2 flex flex-col pb-20" style={{ 
       height: '80vh' /* Stop before URL bar area on mobile */
@@ -120,7 +146,6 @@ export default function Home() {
               <BunnyHopGame 
                 bunnyImageUrl={bunnyImageUrl}
                 onGameOver={(score) => {
-                  console.log('🎮 Bunny Hop Game Over! Score:', score);
                   // Could award coins/XP based on score here
                 }}
                 onClose={() => setShowBunnyHopGame(false)}
@@ -128,65 +153,257 @@ export default function Home() {
             </div>
           ) : (
             <>
-              {/* Bunny - Ultra compact for mobile */}
+              {/* Bunny Box - Modified layout for Items mode */}
               <div className="w-full flex flex-col items-center flex-shrink-0 pt-4 pb-1">
                 <TimeOfDayManager autoAdvance={true} intervalMinutes={0.05}>
                   {(hour, setHour) => (
                     <AnimatedMeadowScene hour={hour} wardrobeMode={activeTab === 'wardrobe'}>
-                  {imageLoading ? (
-                    <div className="text-center text-white">
-                      <div className="text-4xl mb-2 animate-bounce">🐰</div>
-                      <p className="text-sm font-medium">Loading bunny...</p>
-                    </div>
-                  ) : (
-                    <AnimatedBunny 
-                      bunnyImageUrl={bunnyImageUrl}
-                      alt="Bunny" 
-                      className="w-[95%] h-[95%] object-contain mx-auto"
-                      debugTrigger={debugTrigger}
-                      debugMode={debugMode}
-                    />
-                  )}
+                      {/* Flexible content based on active tab */}
+                      {activeTab === 'wardrobe' ? (
+                        /* Wardrobe Items Mode: Split layout - Bunny left, Items right */
+                        <div className="flex w-full h-full">
+                          {/* White overlay behind bunny and outfit items for better visibility */}
+                          <div className="absolute inset-0 bg-white/85 rounded-2xl"></div>
+                          
+                          {/* Left: Bunny (takes 45% of space) */}
+                          <div style={{width: '45%'}} className="relative flex items-center justify-start pl-4 z-10">
+                            {imageLoading ? (
+                              <div className="text-center text-white">
+                                <div className="text-3xl mb-2 animate-bounce">🐰</div>
+                                <p className="text-xs font-medium">Loading...</p>
+                              </div>
+                            ) : (
+                              <div style={{ transform: 'scale(1.5)', transformOrigin: 'center' }}>
+                                <AnimatedBunny 
+                                  bunnyImageUrl={bunnyImageUrl}
+                                  alt="Bunny" 
+                                  className="w-full h-full object-contain"
+                                  debugTrigger={debugTrigger}
+                                  debugMode={true} // Always static in wardrobe
+                                />
+                              </div>
+                            )}
+                          </div>
+                          
+                          {/* Right: Selected Items Panel (takes 55% of space) */}
+                          <div style={{width: '55%'}} className="relative p-2">
+                            <div 
+                              className="bg-white/90 backdrop-blur-sm border border-white/30 rounded-xl p-3 h-full overflow-y-auto"
+                              style={{ minHeight: '180px', maxHeight: '280px' }}
+                            >
+                              <h4 className="text-purple-800 font-medium text-xs mb-2">📝 Outfit Items</h4>
+                              <div className="space-y-1">
+                                {/* Show currently equipped items first, then any modifications */}
+                                {(() => {
+                                  const currentEquipment = bunnyInventory?.equipment || {};
+                                  
+                                  // Equipment data loaded from database
+                                  
+                                  const allSlots = new Set([
+                                    ...Object.keys(currentEquipment),
+                                    ...Object.keys(wardrobeSelectedItems)
+                                  ]);
+                                  
+                                  if (allSlots.size === 0) {
+                                    return (
+                                      <div className="text-center text-purple-600 text-xxs py-2">
+                                        <div className="text-lg mb-1">👔</div>
+                                        <p>No items equipped</p>
+                                      </div>
+                                    );
+                                  }
+                                  
+                                  // Define body order from top to bottom
+                                  const bodyOrder = ['head', 'face', 'upper_body', 'lower_body', 'feet', 'accessory'];
+                                  const sortedSlots = Array.from(allSlots).sort((a, b) => {
+                                    const aIndex = bodyOrder.indexOf(a);
+                                    const bIndex = bodyOrder.indexOf(b);
+                                    // If slot not in bodyOrder, put it at the end
+                                    if (aIndex === -1 && bIndex === -1) return a.localeCompare(b);
+                                    if (aIndex === -1) return 1;
+                                    if (bIndex === -1) return -1;
+                                    return aIndex - bIndex;
+                                  });
+                                  
+                                  return sortedSlots.map(slot => {
+                                    // Check if user has made changes to this slot
+                                    const selectedItemId = wardrobeSelectedItems[slot];
+                                    
+                                    if (selectedItemId === 'EMPTY_SLOT') {
+                                      // User wants to remove this slot
+                                      return (
+                                        <div key={slot} className="flex items-center gap-2 bg-orange-100 rounded p-1.5">
+                                          <div className="w-6 h-6 bg-orange-200 rounded flex items-center justify-center">
+                                            <span className="text-orange-600 text-xxs">∅</span>
+                                          </div>
+                                          <div className="flex-1 min-w-0">
+                                            <div className="text-xxs font-medium text-orange-700 truncate">
+                                              Empty {slot}
+                                            </div>
+                                            <div className="text-xxs text-orange-600">Will be removed</div>
+                                          </div>
+                                          <button
+                                            onClick={() => {
+                                              setWardrobeSelectedItems(prev => {
+                                                const newItems = { ...prev };
+                                                delete newItems[slot];
+                                                return newItems;
+                                              });
+                                            }}
+                                            className="text-red-600 hover:text-red-800 text-xs px-1"
+                                          >
+                                            ↶
+                                          </button>
+                                        </div>
+                                      );
+                                    } else if (selectedItemId && selectedItemId !== 'EMPTY_SLOT') {
+                                      // User has selected a replacement item
+                                      const allItems = bunnyInventory?.inventory || [];
+                                      const inventoryItem = allItems.find((i: any) => i.item?.id === selectedItemId);
+                                      const item = inventoryItem?.item;
+                                      
+                                      return (
+                                        <div key={slot} className="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded p-1.5">
+                                          <div className="w-6 h-6 bg-white border border-blue-300 rounded overflow-hidden">
+                                            {item?.image_url ? (
+                                              <img 
+                                                src={item.image_url}
+                                                alt={item.name}
+                                                className="w-full h-full object-cover"
+                                              />
+                                            ) : (
+                                              <div className="w-full h-full flex items-center justify-center">
+                                                <span className="text-xxs">📦</span>
+                                              </div>
+                                            )}
+                                          </div>
+                                          <div className="flex-1 min-w-0">
+                                            <div className="text-xxs font-medium text-blue-800 truncate">
+                                              {item?.name || 'Unknown Item'}
+                                            </div>
+                                            <div className="text-xxs text-blue-600">New selection</div>
+                                          </div>
+                                          <button
+                                            onClick={() => {
+                                              setWardrobeSelectedItems(prev => {
+                                                const newItems = { ...prev };
+                                                delete newItems[slot];
+                                                return newItems;
+                                              });
+                                            }}
+                                            className="text-red-600 hover:text-red-800 text-xs px-1"
+                                          >
+                                            ↶
+                                          </button>
+                                        </div>
+                                      );
+                                    } else {
+                                      // Show currently equipped item (default state)
+                                      const currentItem = currentEquipment[slot];
+                                      if (!currentItem) return null;
+                                      
+                                      // Debug log to see what data we have
+                                      
+                                      return (
+                                        <div key={slot} className="flex items-center gap-2 bg-green-50 rounded p-1.5">
+                                          <div className="w-6 h-6 bg-white border border-green-200 rounded overflow-hidden">
+                                            {(currentItem.image_url || currentItem.item?.image_url) ? (
+                                              <img 
+                                                src={currentItem.image_url || currentItem.item?.image_url}
+                                                alt={currentItem.name || currentItem.item?.name || 'Item'}
+                                                className="w-full h-full object-cover"
+                                              />
+                                            ) : (
+                                              <div className="w-full h-full flex items-center justify-center">
+                                                <span className="text-xxs">📦</span>
+                                              </div>
+                                            )}
+                                          </div>
+                                          <div className="flex-1 min-w-0">
+                                            <div className="text-xxs font-medium text-green-800 truncate">
+                                              {currentItem.name || currentItem.item?.name || 'Unknown Item'}
+                                            </div>
+                                            <div className="text-xxs text-green-600">Currently worn</div>
+                                          </div>
+                                          <button
+                                            onClick={() => {
+                                              setWardrobeSelectedItems(prev => ({
+                                                ...prev,
+                                                [slot]: 'EMPTY_SLOT'
+                                              }));
+                                            }}
+                                            className="text-orange-600 hover:text-orange-800 text-xs px-1"
+                                          >
+                                            ×
+                                          </button>
+                                        </div>
+                                      );
+                                    }
+                                  });
+                                })()}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        /* Normal Mode: Centered bunny */
+                        <>
+                          {imageLoading ? (
+                            <div className="text-center text-white">
+                              <div className="text-4xl mb-2 animate-bounce">🐰</div>
+                              <p className="text-sm font-medium">Loading bunny...</p>
+                            </div>
+                          ) : (
+                            <AnimatedBunny 
+                              bunnyImageUrl={bunnyImageUrl}
+                              alt="Bunny" 
+                              className="w-[95%] h-[95%] object-contain mx-auto"
+                              debugTrigger={debugTrigger}
+                              debugMode={debugMode}
+                            />
+                          )}
+                        </>
+                      )}
                   
-                  {/* Stats overlay stacked on sides */}
-                  {mounted && (
-                    <>
-                      <div className="absolute bottom-3 left-3 flex flex-col gap-1">
-                        <div className="pixel-font text-xxs text-white bg-black/50 rounded px-1 py-0.5">
-                          {getStatEmoji('stimulation')} {getStatPercentage('stimulation')}
-                        </div>
-                        <div className="pixel-font text-xxs text-white bg-black/50 rounded px-1 py-0.5">
-                          {getStatEmoji('connection')} {getStatPercentage('connection')}
-                        </div>
-                      </div>
-                      <div className="absolute bottom-3 right-3 flex flex-col gap-1">
-                        <div className="pixel-font text-xxs text-white bg-black/50 rounded px-1 py-0.5">
-                          {getStatEmoji('comfort')} {getStatPercentage('comfort')}
-                        </div>
-                        <div className="pixel-font text-xxs text-white bg-black/50 rounded px-1 py-0.5">
-                          {getStatEmoji('energy')} {getStatPercentage('energy')}
-                        </div>
-                      </div>
-                    </>
-                  )}
+                      {/* Stats overlay - only show when NOT in wardrobe items mode */}
+                      {mounted && activeTab !== 'wardrobe' && (
+                        <>
+                          <div className="absolute bottom-3 left-3 flex flex-col gap-1">
+                            <div className="pixel-font text-xxs text-white bg-black/50 rounded px-1 py-0.5">
+                              {getStatEmoji('stimulation')} {getStatPercentage('stimulation')}
+                            </div>
+                            <div className="pixel-font text-xxs text-white bg-black/50 rounded px-1 py-0.5">
+                              {getStatEmoji('connection')} {getStatPercentage('connection')}
+                            </div>
+                          </div>
+                          <div className="absolute bottom-3 right-3 flex flex-col gap-1">
+                            <div className="pixel-font text-xxs text-white bg-black/50 rounded px-1 py-0.5">
+                              {getStatEmoji('comfort')} {getStatPercentage('comfort')}
+                            </div>
+                            <div className="pixel-font text-xxs text-white bg-black/50 rounded px-1 py-0.5">
+                              {getStatEmoji('energy')} {getStatPercentage('energy')}
+                            </div>
+                          </div>
+                        </>
+                      )}
                   
-                  {/* Money and Level in top corners */}
-                  <div className="absolute top-3 left-3 pixel-font text-xxs text-white bg-black/50 rounded px-1 py-0.5">
-                    💰 {mounted ? (state?.coins || 0) : 0}
-                  </div>
-                  <div className="absolute top-3 right-3 pixel-font text-xxs text-white bg-black/50 rounded px-1 py-0.5">
-                    ⭐ {mounted ? Math.floor((state?.experience || 0) / 100) + 1 : 1}
-                  </div>
+                      {/* Money and Level in top corners */}
+                      <div className="absolute top-3 left-3 pixel-font text-xxs text-white bg-black/50 rounded px-1 py-0.5">
+                        💰 {mounted ? (state?.coins || 0) : 0}
+                      </div>
+                      <div className="absolute top-3 right-3 pixel-font text-xxs text-white bg-black/50 rounded px-1 py-0.5">
+                        ⭐ {mounted ? Math.floor((state?.experience || 0) / 100) + 1 : 1}
+                      </div>
 
-                  {imageGenerating && (
-                    <div className="absolute inset-0 bg-black/50 rounded-3xl flex items-center justify-center">
-                      <div className="text-center text-white">
-                        <div className="text-4xl mb-2 animate-bounce">🎨</div>
-                        <p className="text-sm font-medium">Generating...</p>
-                      </div>
-                    </div>
-                  )}
-                </AnimatedMeadowScene>
+                      {imageGenerating && (
+                        <div className="absolute inset-0 bg-black/50 rounded-3xl flex items-center justify-center">
+                          <div className="text-center text-white">
+                            <div className="text-4xl mb-2 animate-bounce">🎨</div>
+                            <p className="text-sm font-medium">Generating...</p>
+                          </div>
+                        </div>
+                      )}
+                    </AnimatedMeadowScene>
                   )}
                 </TimeOfDayManager>
               </div>
@@ -202,6 +419,9 @@ export default function Home() {
                   onTriggerAnimation={handleTriggerAnimation}
                   debugMode={debugMode}
                   onToggleDebugMode={handleToggleDebugMode}
+                  onWardrobeSelectedItemsChange={handleWardrobeSelectedItemsChange}
+                  wardrobeSelectedItems={wardrobeSelectedItems}
+                  onClearWardrobeChanges={handleClearWardrobeChanges}
                 />
               </div>
             </>

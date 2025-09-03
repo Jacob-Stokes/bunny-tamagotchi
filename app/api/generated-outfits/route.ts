@@ -10,13 +10,11 @@ export async function GET(request: NextRequest) {
       ? '/var/www/bunny-static/generated-bunnies'
       : path.join(process.cwd(), 'public', 'generated-bunnies');
 
-    console.log('🔍 Scanning generated outfits in:', baseDir);
 
     let outfitFolders: string[] = [];
     try {
       outfitFolders = await readdir(baseDir);
     } catch {
-      console.log('📁 Generated bunnies directory does not exist yet');
       return NextResponse.json({ outfits: [] });
     }
 
@@ -97,7 +95,6 @@ export async function GET(request: NextRequest) {
     // Sort by generation time (newest first)
     outfits.sort((a, b) => new Date(b.generatedAt).getTime() - new Date(a.generatedAt).getTime());
 
-    console.log(`✅ Found ${outfits.length} generated outfits`);
 
     return NextResponse.json({ outfits });
   } catch (error) {

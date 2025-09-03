@@ -10,7 +10,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Missing outfitKey' }, { status: 400 });
     }
 
-    console.log('🔍 Analyzing background issues for outfit:', outfitKey);
 
     // Use different paths for development vs production
     const isProduction = process.env.NODE_ENV === 'production';
@@ -51,7 +50,6 @@ export async function POST(request: NextRequest) {
         .sort(([_, a], [__, b]) => b.confidence - a.confidence)[0]
     };
 
-    console.log('🔍 Analysis complete:', summary);
 
     return NextResponse.json({
       success: true,

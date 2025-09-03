@@ -39,13 +39,11 @@ async function verifyGeneratedImages(selected_items: Array<{ item_id: string; sl
     const imagePath = path.join(bunnyDir, imageName);
     try {
       await fs.access(imagePath);
-      console.log(`✅ Verified ${imageName} exists at ${cacheKey}/${imageName}`);
     } catch (error) {
       throw new Error(`Generated image ${imageName} does not exist at ${imagePath}`);
     }
   }
   
-  console.log(`✅ All generated images verified for cache key: ${cacheKey}`);
   return cacheKey;
 }
 
@@ -57,27 +55,21 @@ async function applyOutfitToBunny(bunny_id: string, selected_items: Array<{ item
   const currentInventory = await InventoryService.getBunnyFullInventory(bunny_id);
   const currentSlots = Object.keys(currentInventory.equipment || {});
   
-  console.log('🔧 Unequipping current items:', currentSlots);
   for (const slot of currentSlots) {
     await InventoryService.unequipSlot(bunny_id, slot as any);
   }
   
   // Debug: check what's in the bunny's inventory
   const fullInventory = await InventoryService.getBunnyFullInventory(bunny_id);
-  console.log('🔧 Debug - Full inventory count:', fullInventory.inventory?.length || 0);
-  console.log('🔧 Debug - Inventory item IDs:', fullInventory.inventory?.map(i => i.item?.id) || []);
 
   // Then equip all new items
-  console.log('🔧 Equipping new items:', selected_items.map(i => `${i.name} (${i.item_id})`));
   for (const item of selected_items) {
     await InventoryService.equipItem(bunny_id, item.item_id);
   }
   
-  console.log('✅ Outfit applied to bunny');
 }
 
 export async function POST(request: NextRequest) {
-  console.log('🎨 Outfit generation API called from queue');
   
   try {
     const body: SaveOutfitRequest = await request.json();
@@ -100,7 +92,6 @@ export async function POST(request: NextRequest) {
       console.warn('⚠️ Daily limit check failed, allowing request:', limitError);
     }
 
-    console.log('🎨 Generating outfit for bunny:', bunny_id, 'with items:', selected_items.length);
 
     if (!bunny_id || !outfit_name) {
       console.error('❌ Missing bunny_id or outfit_name');
@@ -111,13 +102,10 @@ export async function POST(request: NextRequest) {
     const selectedBaseBunny = request.headers.get('x-base-bunny') || 'bunny-base.png';
     const selectedScene = request.headers.get('x-scene') || 'meadow';
 
-    console.log(`🎨 Using base bunny: ${selectedBaseBunny}, scene: ${selectedScene}`);
 
     // Use the provided outfit name instead of generating one
-    console.log(`🎨 Using outfit name: ${outfit_name}`);
 
     // Generate bunny with equipment by calling the existing generation API
-    console.log('🎨 Generating bunny images with equipment...');
     
     // Create a mock request object for the generate-bunny-image function
     const mockRequest = {
@@ -146,7 +134,6 @@ export async function POST(request: NextRequest) {
     }
     
     // Verify all images actually exist before proceeding
-    console.log('🔍 Verifying generated images exist...');
     const cacheKey = await verifyGeneratedImages(selected_items, selectedBaseBunny);
 
     // Prepare image URLs for outfit storage using the correct cache key
@@ -159,7 +146,6 @@ export async function POST(request: NextRequest) {
     };
 
     // Save outfit to database (DON'T apply it to bunny yet - user decides later)
-    console.log('💾 Saving outfit to database...');
     const outfit = await OutfitService.createOutfit({
       bunny_id: bunny_id,
       name: outfit_name,
@@ -170,18 +156,15 @@ export async function POST(request: NextRequest) {
     });
 
     // DON'T apply outfit yet - user will apply it when they accept the notification
-    console.log('✅ Outfit generated and saved - waiting for user to apply it');
 
     // Increment daily usage counter after successful generation
     try {
       await OutfitService.incrementDailyUsage(userId);
-      console.log('📊 Daily outfit counter incremented');
     } catch (counterError) {
       console.error('⚠️ Failed to increment daily counter:', counterError);
       // Don't fail the whole request if counter fails
     }
 
-    console.log('✅ Outfit generated, images verified, and applied to bunny successfully!');
 
     return NextResponse.json({
       success: true,
@@ -237,7 +220,6 @@ The name should be:
 
 Just respond with the outfit name, nothing else.`;
 
-    console.log('🤖 Generating outfit name with Gemini Flash...');
     
     const result = await model.generateContent(prompt);
     const response = await result.response;
@@ -245,7 +227,6 @@ Just respond with the outfit name, nothing else.`;
 
     // Validate and clean the name
     if (outfitName && outfitName.length <= 50 && outfitName.length > 0) {
-      console.log(`✅ AI generated outfit name: ${outfitName}`);
       return outfitName;
     } else {
       console.warn('AI name was invalid, falling back to simple naming');

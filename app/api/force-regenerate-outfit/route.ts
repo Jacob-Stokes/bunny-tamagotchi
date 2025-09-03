@@ -12,7 +12,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Missing outfitKey' }, { status: 400 });
     }
 
-    console.log('🔥 Force regenerating outfit:', outfitKey);
 
     // Use different paths for development vs production
     const isProduction = process.env.NODE_ENV === 'production';
@@ -43,14 +42,12 @@ export async function POST(request: NextRequest) {
     for (const filename of filesToDelete) {
       try {
         await unlink(path.join(outfitFolderPath, filename));
-        console.log(`🗑️ Deleted ${filename}`);
       } catch {
         // File doesn't exist, which is fine
       }
     }
 
     // Fetch current item data from database (metadata might not have image_url)
-    console.log('🔍 Fetching current item data for:', metadata.equippedItems.map((item: any) => item.item_id));
     
     const { InventoryService } = await import('../../lib/inventoryService');
     const allItems = await InventoryService.getItems();
@@ -70,7 +67,6 @@ export async function POST(request: NextRequest) {
       };
     });
     
-    console.log('🎨 Regenerating with current items:', equippedItems);
     
     try {
       // Call the same generation endpoint with the stored data
@@ -95,7 +91,6 @@ export async function POST(request: NextRequest) {
 
       const result = await regenerateResponse.json();
       
-      console.log('✅ Outfit regenerated successfully');
       
       return NextResponse.json({
         success: true,

@@ -86,11 +86,9 @@ class OutfitGenerationQueue {
     try {
       // Apply the outfit to the bunny and wait for completion
       await this.assignOutfitToBunny(job);
-      console.log(`✅ Outfit assigned to bunny: ${job.outfit_name}`);
       
       // Use the pre-generated image instead of regenerating
       setTimeout(() => {
-        console.log(`🎨 Using pre-generated image for job ${id}: ${job.generated_image_url}`);
         window.dispatchEvent(new CustomEvent('bunny-outfit-applied', { 
           detail: { 
             imageUrl: job.generated_image_url,
@@ -113,19 +111,16 @@ class OutfitGenerationQueue {
   private async assignOutfitToBunny(job: OutfitGenerationJob): Promise<void> {
     const { InventoryService } = await import('./inventoryService');
     
-    console.log(`🔧 Assigning outfit "${job.outfit_name}" to bunny ${job.bunny_id}`);
     
     // First, unequip all current items
     const currentInventory = await InventoryService.getBunnyFullInventory(job.bunny_id);
     const currentSlots = Object.keys(currentInventory.equipment || {});
     
-    console.log(`🔧 Unequipping ${currentSlots.length} current items:`, currentSlots);
     for (const slot of currentSlots) {
       await InventoryService.unequipSlot(job.bunny_id, slot as any);
     }
     
     // Then equip all items from the generated outfit
-    console.log(`🔧 Equipping ${job.selected_items.length} new items:`, job.selected_items.map(i => i.name));
     for (const item of job.selected_items) {
       await InventoryService.equipItem(job.bunny_id, item.item_id);
     }
@@ -133,7 +128,6 @@ class OutfitGenerationQueue {
     // Verify the equipment was applied correctly
     const verifyInventory = await InventoryService.getBunnyFullInventory(job.bunny_id);
     const newEquipment = Object.keys(verifyInventory.equipment || {});
-    console.log(`🔧 Verification: ${newEquipment.length} items now equipped:`, newEquipment);
   }
 
   // Subscribe to queue changes
@@ -165,7 +159,6 @@ class OutfitGenerationQueue {
       this.notifyListeners();
       
       try {
-        console.log(`🔄 Processing outfit generation job: ${pendingJob.id}`);
         const startTime = Date.now();
         
         // Call the generation API
@@ -190,7 +183,6 @@ class OutfitGenerationQueue {
           const actualDelay = Math.max(0, minGenerationTime - (Date.now() - startTime));
           
           if (actualDelay > 0) {
-            console.log(`⏱️ Adding ${actualDelay}ms delay for realistic generation timing`);
             await new Promise(resolve => setTimeout(resolve, actualDelay));
           }
           
@@ -198,13 +190,11 @@ class OutfitGenerationQueue {
           pendingJob.status = 'completed';
           pendingJob.completed_at = new Date();
           pendingJob.generated_image_url = result.bunny_image_url;
-          console.log(`✅ Outfit generation completed: ${pendingJob.id}`);
         } else {
           // Failure
           pendingJob.status = 'failed';
           pendingJob.completed_at = new Date();
           pendingJob.error_message = result.error || 'Generation failed';
-          console.log(`❌ Outfit generation failed: ${pendingJob.id}`, result.error);
         }
         
       } catch (error) {
@@ -212,7 +202,6 @@ class OutfitGenerationQueue {
         pendingJob.status = 'failed';
         pendingJob.completed_at = new Date();
         pendingJob.error_message = error instanceof Error ? error.message : 'Unknown error';
-        console.log(`💥 Outfit generation error: ${pendingJob.id}`, error);
       }
       
       this.notifyListeners();

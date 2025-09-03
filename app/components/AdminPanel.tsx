@@ -180,13 +180,11 @@ export default function AdminPanel() {
   const selectBaseBunny = (bunnyFileName: string) => {
     setCurrentBaseBunny(bunnyFileName);
     localStorage.setItem('selected-base-bunny', bunnyFileName);
-    console.log('Selected base bunny:', bunnyFileName);
   };
 
   const selectScene = (sceneId: string) => {
     setCurrentScene(sceneId);
     localStorage.setItem('selected-scene', sceneId);
-    console.log('Selected scene:', sceneId);
   };
 
   const loadScenes = async () => {
@@ -226,7 +224,6 @@ export default function AdminPanel() {
       await loadScenes();
       setShowSceneForm(false);
       resetSceneForm();
-      console.log('Scene created successfully');
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -257,7 +254,6 @@ export default function AdminPanel() {
       await loadScenes();
       setEditingScene(null);
       resetSceneForm();
-      console.log('Scene updated successfully');
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -273,7 +269,6 @@ export default function AdminPanel() {
     try {
       await SceneService.deleteScene(sceneId);
       await loadScenes();
-      console.log('Scene deleted successfully');
     } catch (err: any) {
       setError(err.message);
     }
@@ -355,7 +350,6 @@ export default function AdminPanel() {
       });
 
       if (response.ok) {
-        console.log('Outfit regenerated successfully');
         // Reload the outfits list to get updated data
         await loadGeneratedOutfits();
       } else {
@@ -382,7 +376,6 @@ export default function AdminPanel() {
 
       if (response.ok) {
         const result = await response.json();
-        console.log('Selective regeneration completed:', result);
         // Reload the outfits list to get updated data
         await loadGeneratedOutfits();
         // Close the modal
@@ -453,7 +446,6 @@ export default function AdminPanel() {
       await loadItems();
       setShowAddForm(false);
       resetForm();
-      console.log('Item created successfully');
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -490,7 +482,6 @@ export default function AdminPanel() {
       await loadItems();
       setEditingItem(null);
       resetForm();
-      console.log('Item updated successfully');
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -512,7 +503,6 @@ export default function AdminPanel() {
       if (error) throw error;
 
       await loadItems();
-      console.log('Item deleted successfully');
     } catch (err: any) {
       setError(err.message);
     }

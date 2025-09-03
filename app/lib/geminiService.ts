@@ -87,8 +87,6 @@ The result should look like the original bunny wearing these specific items, wit
       // Create prompt for image generation
       const prompt = this.createPrompt(equippedItems);
 
-      console.log('Generating bunny image with Gemini...');
-      console.log('Items to equip:', equippedItems.map(i => i.name));
 
       // Generate content with image generation
       const result = await model.generateContent([
@@ -102,7 +100,6 @@ The result should look like the original bunny wearing these specific items, wit
       const response = await result.response;
       const generatedText = response.text();
       
-      console.log('Gemini response:', generatedText);
       
       // Note: This may need adjustment based on actual Gemini image generation API
       // The response format may be different - you might need to extract image data

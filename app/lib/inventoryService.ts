@@ -96,7 +96,6 @@ export class InventoryService {
 
       if (equipError) throw equipError;
       
-      console.log('Raw equipment data from database:', JSON.stringify(equipmentData, null, 2));
 
       // Process inventory
       const inventory: BunnyInventoryItem[] = inventoryData?.map(item => ({
@@ -151,6 +150,7 @@ export class InventoryService {
       equipmentArray.forEach(eq => {
         equipment[eq.slot] = eq;
       });
+      
 
       // Calculate total stat effects from equipped items
       const totalStatEffects: StatEffects = {};
@@ -176,7 +176,6 @@ export class InventoryService {
 
   // Add item to bunny's inventory
   static async addItemToInventory(bunnyId: string, itemId: string, quantity: number = 1): Promise<BunnyInventoryItem> {
-    console.log('🟢 InventoryService.addItemToInventory called:', { bunnyId, itemId, quantity });
     
     if (!isSupabaseConfigured || !supabase) {
       throw new Error('Supabase is not configured');
@@ -227,13 +226,11 @@ export class InventoryService {
     }
 
     try {
-      console.log('Equipping item:', itemId, 'for bunny:', bunnyId);
       
       // First, verify the item exists and get its slot
       const item = await this.getItem(itemId);
       if (!item) throw new Error('Item not found');
       
-      console.log('Item found:', item.name, 'slot:', item.slot);
 
       // Verify bunny owns this item
       const { data: inventoryItem } = await supabase
@@ -243,10 +240,8 @@ export class InventoryService {
         .eq('item_id', itemId)
         .maybeSingle();
 
-      console.log('Inventory check result:', inventoryItem);
 
       if (!inventoryItem) {
-        console.log('Bunny does not own this item - need to add to inventory first');
         throw new Error('Bunny does not own this item');
       }
 

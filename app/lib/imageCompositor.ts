@@ -80,7 +80,6 @@ class ImageCompositor {
             left: position.x,
           });
 
-          console.log(`Added ${item.name} to composite at position (${position.x}, ${position.y})`);
 
         } catch (error) {
           console.warn(`Could not load item image: ${item.image_url}`, error);
@@ -96,7 +95,6 @@ class ImageCompositor {
       // Return the final composed image as PNG buffer
       const result = await composite.png().toBuffer();
       
-      console.log(`Successfully composed bunny with ${layers.length} items`);
       return result;
 
     } catch (error) {

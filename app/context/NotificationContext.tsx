@@ -6,7 +6,7 @@ import { useBunny } from './BunnyContext';
 
 export interface Notification {
   id: string;
-  type: 'outfit_complete' | 'outfit_failed';
+  type: 'outfit_complete' | 'outfit_failed' | 'outfit_started';
   title: string;
   message: string;
   timestamp: Date;

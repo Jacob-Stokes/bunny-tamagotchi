@@ -311,14 +311,16 @@ export default function AnimatedMeadowScene({ children, hour = 12, wardrobeMode 
           }}
         />
         
-        {/* Back to outdoor button */}
-        <button
-          onClick={handleHouseClick}
-          className="absolute top-2 left-2 bg-white/80 hover:bg-white/90 rounded-full p-2 text-sm transition-colors z-10"
-          title="Go outside"
-        >
-          🏠→🌳
-        </button>
+        {/* Back to outdoor button - hidden in wardrobe mode */}
+        {!wardrobeMode && (
+          <button
+            onClick={handleHouseClick}
+            className="absolute top-2 left-2 bg-white/80 hover:bg-white/90 rounded-full p-2 text-sm transition-colors z-10"
+            title="Go outside"
+          >
+            🏠→🌳
+          </button>
+        )}
         
         {/* Content (bunny, etc.) */}
         <div className="absolute inset-0 flex items-center justify-center" style={{ zIndex: 5 }}>
@@ -328,17 +330,6 @@ export default function AnimatedMeadowScene({ children, hour = 12, wardrobeMode 
     );
   }
 
-  // Wardrobe mode - simple white background
-  if (wardrobeMode) {
-    return (
-      <div className="w-full h-64 relative overflow-hidden rounded-2xl bg-white">
-        {/* Content (bunny for wardrobe) */}
-        <div className="absolute inset-0 flex items-center justify-center">
-          {children}
-        </div>
-      </div>
-    );
-  }
 
   // Outdoor meadow scene
   return (
@@ -420,7 +411,6 @@ export default function AnimatedMeadowScene({ children, hour = 12, wardrobeMode 
         
         // Debug logging for moon positioning
         if (!isSunTime && isMoonTime) {
-          console.log(`Moon at hour ${hour}: progress=${progress.toFixed(3)}, yProgress=${yProgress.toFixed(3)}, y=${(y + size/2).toFixed(1)}`);
         }
         
         // Only show if we should show celestial bodies and they're above horizon
@@ -605,21 +595,23 @@ export default function AnimatedMeadowScene({ children, hour = 12, wardrobeMode 
       
       {/* 5. Content (bunny, etc.) - on top of everything */}
       {(() => {
-        // Dynamic bunny lighting based on time of day
+        // Dynamic bunny lighting based on time of day (disabled in wardrobe mode)
         let bunnyFilter = '';
         
-        if (hour >= 6 && hour < 8) {
-          // Dawn - extremely subtle warm tint
-          bunnyFilter = 'brightness(0.99) sepia(0.015) hue-rotate(30deg) saturate(1.01)';
-        } else if (hour >= 8 && hour < 16) {
-          // Day - natural
-          bunnyFilter = 'brightness(1.0)';
-        } else if (hour >= 16 && hour < 20) {
-          // Afternoon/evening - extremely subtle golden/orange tint
-          bunnyFilter = 'brightness(0.99) sepia(0.02) hue-rotate(15deg) saturate(1.015)';
-        } else {
-          // Night/other times - just slightly darker, no color tinting
-          bunnyFilter = 'brightness(0.92)';
+        if (!wardrobeMode) {
+          if (hour >= 6 && hour < 8) {
+            // Dawn - extremely subtle warm tint
+            bunnyFilter = 'brightness(0.99) sepia(0.015) hue-rotate(30deg) saturate(1.01)';
+          } else if (hour >= 8 && hour < 16) {
+            // Day - natural
+            bunnyFilter = 'brightness(1.0)';
+          } else if (hour >= 16 && hour < 20) {
+            // Afternoon/evening - extremely subtle golden/orange tint
+            bunnyFilter = 'brightness(0.99) sepia(0.02) hue-rotate(15deg) saturate(1.015)';
+          } else {
+            // Night/other times - just slightly darker, no color tinting
+            bunnyFilter = 'brightness(0.92)';
+          }
         }
         
         return (
@@ -635,19 +627,21 @@ export default function AnimatedMeadowScene({ children, hour = 12, wardrobeMode 
         );
       })()}
       
-      {/* 6. Clickable house area */}
-      <div
-        onClick={handleHouseClick}
-        className="absolute cursor-pointer hover:bg-blue-200/20 transition-colors rounded-lg"
-        style={{
-          left: '0px',     // Touching left edge of box
-          top: '110px',    // Nudged down slightly
-          width: '66px',   // 66% of original size
-          height: '66px',
-          zIndex: 6
-        }}
-        title="Enter house"
-      />
+      {/* 6. Clickable house area - hidden in wardrobe mode */}
+      {!wardrobeMode && (
+        <div
+          onClick={handleHouseClick}
+          className="absolute cursor-pointer hover:bg-blue-200/20 transition-colors rounded-lg"
+          style={{
+            left: '0px',     // Touching left edge of box
+            top: '110px',    // Nudged down slightly
+            width: '66px',   // 66% of original size
+            height: '66px',
+            zIndex: 6
+          }}
+          title="Enter house"
+        />
+      )}
     </div>
   );
 }

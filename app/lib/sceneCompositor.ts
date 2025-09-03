@@ -8,7 +8,6 @@ export class SceneCompositor {
    * Uses flood fill from edges to identify background areas
    */
   static async removeWhiteBackground(bunnyImagePath: string): Promise<Buffer> {
-    console.log('🎭 Removing white/gray background from bunny...');
     
     const bunnyBuffer = await readFile(bunnyImagePath);
     const { data, info } = await sharp(bunnyBuffer)
@@ -67,7 +66,6 @@ export class SceneCompositor {
     };
     
     // Start flood fill from all edge pixels that are white
-    console.log('🌊 Starting flood fill from edges...');
     
     // Top and bottom edges
     for (let x = 0; x < width; x++) {
@@ -99,7 +97,6 @@ export class SceneCompositor {
       }
     }
     
-    console.log(`🗑️ Marked ${backgroundMap.size} background pixels for removal`);
     
     // Apply transparency to background pixels
     for (let y = 0; y < height; y++) {
@@ -126,7 +123,6 @@ export class SceneCompositor {
     .png()
     .toBuffer();
     
-    console.log('✅ Flood fill background removal completed');
     return transparentBunny;
   }
   
@@ -139,7 +135,6 @@ export class SceneCompositor {
     outputPath: string
   ): Promise<boolean> {
     try {
-      console.log('🌄 Compositing bunny onto scene...');
       
       // Load scene background
       const sceneBuffer = await readFile(sceneImagePath);
@@ -177,14 +172,12 @@ export class SceneCompositor {
           .png()
           .toBuffer();
         
-        console.log(`📏 Scaled bunny from ${bunnyWidth}x${bunnyHeight} to ${finalBunnyWidth}x${finalBunnyHeight}`);
       }
       
       // Position bunny (center horizontally, bottom third vertically)
       const bunnyX = Math.floor((sceneWidth - finalBunnyWidth) / 2);
       const bunnyY = Math.floor(sceneHeight * 0.6 - finalBunnyHeight / 2); // Place in bottom third
       
-      console.log(`📍 Placing bunny at (${bunnyX}, ${bunnyY})`);
       
       // Composite bunny onto scene
       const composedImage = await sceneImage
@@ -200,7 +193,6 @@ export class SceneCompositor {
       // Save the composed image
       await writeFile(outputPath, composedImage);
       
-      console.log('✅ Scene composition completed successfully');
       return true;
       
     } catch (error) {
@@ -217,7 +209,6 @@ export class SceneCompositor {
     selectedScene: string = 'meadow'
   ): Promise<boolean> {
     try {
-      console.log(`🎬 Creating scene versions for scene: ${selectedScene}`);
       
       // Paths
       const normalImagePath = path.join(bunnyFolderPath, 'normal.png');
@@ -237,21 +228,17 @@ export class SceneCompositor {
       }
       
       // Process normal bunny
-      console.log('🐰 Processing normal bunny...');
       const transparentNormalBunny = await this.removeWhiteBackground(normalImagePath);
       await this.compositeOntoScene(transparentNormalBunny, sceneImagePath, sceneNormalPath);
       
       // Process blink bunny (if exists)
       try {
         await readFile(blinkImagePath);
-        console.log('👁️ Processing blink bunny...');
         const transparentBlinkBunny = await this.removeWhiteBackground(blinkImagePath);
         await this.compositeOntoScene(transparentBlinkBunny, sceneImagePath, sceneBlinkPath);
       } catch {
-        console.log('⚠️ Blink frame not found, skipping scene blink composition');
       }
       
-      console.log('🎭 Scene composition completed for all frames');
       return true;
       
     } catch (error) {

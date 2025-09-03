@@ -58,11 +58,6 @@ export class OutfitService {
   static async createOutfit(data: CreateOutfitData): Promise<Outfit> {
     // For now, skip database operations since tables don't exist yet
     // TODO: Implement after running migrations
-    console.log('📝 Outfit would be saved to database:', {
-      bunny_id: data.bunny_id,
-      name: data.name,
-      items: data.equipped_items.length
-    });
 
     // Return a mock outfit object with fake user ID
     return {
@@ -84,7 +79,6 @@ export class OutfitService {
   static async getUserOutfits(bunnyId: string): Promise<Outfit[]> {
     // For now, return empty array since tables don't exist yet
     // TODO: Implement after running migrations
-    console.log('📝 Would fetch outfits for bunny:', bunnyId);
     return [];
   }
 

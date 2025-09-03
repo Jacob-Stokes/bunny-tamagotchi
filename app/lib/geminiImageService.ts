@@ -50,7 +50,6 @@ class GeminiImageService {
         }
         
         const delay = baseDelay * Math.pow(2, attempt);
-        console.log(`🔄 Retry ${attempt + 1}/${maxRetries} in ${delay}ms due to: ${error.message}`);
         await this.sleep(delay);
       }
     }
@@ -200,7 +199,6 @@ This should look like official character art for a mobile game - high quality, c
   // Simple scene compositing using Sharp's built-in chroma key
   private async removeWhiteBackgroundAndComposite(imageBuffer: Buffer, sceneId: string): Promise<Buffer> {
     try {
-      console.log('🟡 Compositing bunny onto scene:', sceneId);
       
       // Load scene background
       const scenePath = path.join(process.cwd(), 'public', 'scenes', `${sceneId}.png`);
@@ -208,7 +206,6 @@ This should look like official character art for a mobile game - high quality, c
       
       try {
         sceneBuffer = await fs.readFile(scenePath);
-        console.log('🟡 Loaded scene background:', sceneId);
       } catch (error) {
         console.warn('🟡 Scene not found, using pink background');
         // Create a simple pink background
@@ -261,7 +258,6 @@ This should look like official character art for a mobile game - high quality, c
             }
           }
           
-          console.log(`🟡 Made ${transparentPixels}/${totalPixels} pixels transparent (${Math.round(transparentPixels/totalPixels*100)}%)`);
           
           return sharp(newData, {
             raw: { width, height, channels: 4 }
@@ -279,7 +275,6 @@ This should look like official character art for a mobile game - high quality, c
         .png()
         .toBuffer();
       
-      console.log('🟡 Scene compositing completed');
       return compositedImage;
       
     } catch (error) {
@@ -296,7 +291,6 @@ This should look like official character art for a mobile game - high quality, c
     }
 
     try {
-      console.log('🟡 Two-step generation: Step 1 - Generate bunny with items');
       
       // Step 1: Generate bunny with all items using sequential method
       let bunnyWithItemsResult;
@@ -317,7 +311,6 @@ This should look like official character art for a mobile game - high quality, c
         throw new Error('Failed to generate bunny with items');
       }
 
-      console.log('🟡 Two-step generation: Step 2 - Place bunny in scene');
       
       // Step 2: Place the generated bunny into the scene
       // Load scene data
@@ -325,10 +318,8 @@ This should look like official character art for a mobile game - high quality, c
       try {
         const { SceneService } = await import('./sceneService');
         const scene = await SceneService.getScene(sceneId);
-        console.log('🟡 Loaded scene:', sceneId, scene ? scene.name : 'not found');
         if (scene?.description) {
           sceneDescription = scene.description;
-          console.log('🟡 Scene description:', sceneDescription);
         }
       } catch (error) {
         console.warn('Could not load scene description, using default');
@@ -336,12 +327,10 @@ This should look like official character art for a mobile game - high quality, c
 
       // Load scene background
       const scenePath = await this.getSceneImagePath(sceneId);
-      console.log('🟡 Scene path:', scenePath);
       let sceneBase64: string | null = null;
       if (scenePath) {
         try {
           sceneBase64 = await this.fileToBase64(scenePath);
-          console.log('🟡 Scene image loaded successfully');
         } catch (error) {
           console.warn('🟡 Could not load scene image:', error);
         }
@@ -369,8 +358,6 @@ This should look like official character art for a mobile game - high quality, c
         ? `Place the bunny from image 1 exactly as it is into the scene from image 2 (${sceneDescription}). Keep the bunny's exact appearance, style, colors, pose, and all accessories unchanged. Only replace the white background with the scene background. The bunny should be positioned naturally in the scene.`
         : `Place the bunny from image 1 into ${sceneDescription}. Keep the bunny's exact appearance, style, colors, pose, and all accessories unchanged. Only replace the white background with an appropriate background for ${sceneDescription}.`;
 
-      console.log('🟡 Scene placement prompt:', scenePlacementPrompt);
-      console.log('🟡 Scene placement images:', sceneBase64 ? 'bunny + scene' : 'bunny only');
       
       scenePlacementParts.push({ text: scenePlacementPrompt });
 
@@ -380,7 +367,6 @@ This should look like official character art for a mobile game - high quality, c
       if (scenePlacementResponse.response.candidates?.[0]?.content?.parts) {
         for (const part of scenePlacementResponse.response.candidates[0].content.parts) {
           if (part.inlineData?.data && part.inlineData?.mimeType?.startsWith('image/')) {
-            console.log('🟡 Two-step generation complete: bunny with items placed in scene');
             return {
               imageData: Buffer.from(part.inlineData.data, 'base64'),
               mimeType: part.inlineData.mimeType
@@ -389,7 +375,6 @@ This should look like official character art for a mobile game - high quality, c
         }
       }
 
-      console.log('🟡 Scene placement failed, returning bunny with items only');
       return bunnyWithItemsResult;
 
     } catch (error) {
@@ -415,7 +400,6 @@ This should look like official character art for a mobile game - high quality, c
     }
 
     try {
-      console.log('🟡 Sequential generation: Processing', equippedItems.length, 'items one by one');
       
       // Start with base bunny
       const baseBunnyPath = path.join(process.cwd(), 'public', 'base-bunnies', baseBunnyFile);
@@ -426,7 +410,6 @@ This should look like official character art for a mobile game - high quality, c
       // Apply each item sequentially
       for (let i = 0; i < equippedItems.length; i++) {
         const item = equippedItems[i];
-        console.log(`🟡 Step ${i + 1}/${equippedItems.length}: Adding ${item.name}`);
         
         if (!item.image_url) continue;
 
@@ -495,11 +478,9 @@ This should look like official character art for a mobile game - high quality, c
           throw new Error(`Step ${i + 1}: Invalid response`);
         }
         
-        console.log(`🟡 Step ${i + 1} complete`);
       }
 
       // Return bunny with accessories, composited onto scene
-      console.log('🟡 Sequential generation complete');
       
       const generatedImageBuffer = Buffer.from(currentImageBase64, 'base64');
       
@@ -520,13 +501,10 @@ This should look like official character art for a mobile game - high quality, c
     }
 
     try {
-      console.log('🟡 Generating bunny image with Gemini 2.5 Flash Image Preview');
-      console.log('🟡 Equipped items:', equippedItems.map(i => `${i.name} (${i.slot})`));
 
       // Load base bunny image
       const baseBunnyPath = path.join(process.cwd(), 'public', 'base-bunnies', baseBunnyFile);
       const baseBunnyBase64 = await this.fileToBase64(baseBunnyPath);
-      console.log('🟡 Loaded base bunny image:', baseBunnyFile);
 
       // Prepare content parts - start with base bunny image
       const contentParts: any[] = [
@@ -549,7 +527,6 @@ This should look like official character art for a mobile game - high quality, c
                 mimeType: 'image/png'
               }
             });
-            console.log(`🟡 Loaded item image: ${item.name}`);
           } catch (error) {
             console.warn(`🟡 Failed to load image for ${item.name}:`, error instanceof Error ? error.message : String(error));
           }
@@ -567,7 +544,6 @@ This should look like official character art for a mobile game - high quality, c
         ? `Add ${itemDescriptions} to the bunny from image 1. Keep the same pixel art style and overall bunny appearance, but fit the clothing items naturally and properly on the bunny. CRITICAL FOR SHOES/BOOTS: The bunny's feet must be INSIDE the footwear, not below it or separate from it - the shoes should replace or cover the bunny's original feet. Make sure items fit the bunny's body proportions correctly. Use a clean white background.`
         : `Create an image with this bunny character from image 1. Keep the same pixel art style. Use a clean white background.`;
       
-      console.log('🟡 Simplified prompt:', prompt);
 
       // No scene background loading - generating with white background for later transparency processing
 
@@ -578,17 +554,14 @@ This should look like official character art for a mobile game - high quality, c
       const model = this.genAI.getGenerativeModel({ model: 'gemini-2.5-flash-image-preview' });
       const response = await model.generateContent(contentParts);
 
-      console.log('🟡 Gemini 2.5 Flash response received');
       
       // Look for generated images in the response
       const responseText = response.response.text();
-      console.log('🟡 Response text:', responseText.substring(0, 200) + '...');
 
       // Check if response contains image data
       if (response.response.candidates?.[0]?.content?.parts) {
         for (const part of response.response.candidates[0].content.parts) {
           if (part.inlineData?.data && part.inlineData?.mimeType?.startsWith('image/')) {
-            console.log('🟡 Image generated successfully with Gemini 2.5 Flash Image Preview');
             
             // Return the generated bunny with scene already included
             const generatedImageBuffer = Buffer.from(part.inlineData.data, 'base64');
@@ -601,8 +574,6 @@ This should look like official character art for a mobile game - high quality, c
         }
       }
 
-      console.log('🟡 No image data found in response');
-      console.log('🟡 Full response:', JSON.stringify(response.response, null, 2));
       return null;
 
     } catch (error) {
@@ -652,7 +623,6 @@ This should look like official character art for a mobile game - high quality, c
     }
 
     // For 3+ items, use step-by-step layering
-    console.log('🔄 Using step-by-step layering for', equippedItems.length, 'items');
     return await this.generateBunnyWithItemsStepByStep(equippedItems, baseBunnyFile);
   }
 
@@ -687,7 +657,6 @@ This should look like official character art for a mobile game - high quality, c
       const prompt = this.createBunnyWithItemsPrompt(equippedItems);
       contentParts.push({ text: prompt });
 
-      console.log('🟡 Generating bunny with', equippedItems.length, 'items using Gemini 2.5 Flash Image Preview');
       const model = this.genAI.getGenerativeModel({ model: 'gemini-2.5-flash-image-preview' });
       const response = await this.retryWithBackoff(() => model.generateContent(contentParts));
 
@@ -695,13 +664,11 @@ This should look like official character art for a mobile game - high quality, c
         for (const part of response.response.candidates[0].content.parts) {
           if (part.inlineData?.data && part.inlineData?.mimeType?.startsWith('image/')) {
             const imageBuffer = Buffer.from(part.inlineData.data, 'base64');
-            console.log('🟡 Bunny with items generated successfully');
             return { imageData: imageBuffer, mimeType: part.inlineData.mimeType };
           }
         }
       }
 
-      console.log('🟡 No image found in response');
       return null;
 
     } catch (error) {
@@ -719,7 +686,6 @@ This should look like official character art for a mobile game - high quality, c
       // Apply items one by one
       for (let i = 0; i < equippedItems.length; i++) {
         const currentItem = equippedItems[i];
-        console.log(`🔄 Step ${i + 1}/${equippedItems.length}: Adding ${currentItem.name}`);
 
         const itemBase64 = await this.urlToBase64(currentItem.image_url);
         const currentBunnyBase64 = currentBunnyBuffer.toString('base64');
@@ -749,7 +715,6 @@ This should look like official character art for a mobile game - high quality, c
           for (const part of response.response.candidates[0].content.parts) {
             if (part.inlineData?.data && part.inlineData?.mimeType?.startsWith('image/')) {
               currentBunnyBuffer = Buffer.from(part.inlineData.data, 'base64');
-              console.log(`✅ Step ${i + 1} completed: ${currentItem.name} added`);
               break;
             }
           }
@@ -764,7 +729,6 @@ This should look like official character art for a mobile game - high quality, c
         }
       }
 
-      console.log('🎉 Step-by-step generation completed successfully');
       return { imageData: currentBunnyBuffer, mimeType: 'image/png' };
 
     } catch (error) {
@@ -806,7 +770,6 @@ This should look like official character art for a mobile game - high quality, c
       
       contentParts.push({ text: prompt });
 
-      console.log('🟡 Compositing bunny onto scene using Gemini 2.5 Flash Image Preview');
       const model = this.genAI.getGenerativeModel({ model: 'gemini-2.5-flash-image-preview' });
       const response = await model.generateContent(contentParts);
 
@@ -814,13 +777,11 @@ This should look like official character art for a mobile game - high quality, c
         for (const part of response.response.candidates[0].content.parts) {
           if (part.inlineData?.data && part.inlineData?.mimeType?.startsWith('image/')) {
             const imageBuffer = Buffer.from(part.inlineData.data, 'base64');
-            console.log('🟡 Scene composite generated successfully');
             return { imageData: imageBuffer, mimeType: part.inlineData.mimeType };
           }
         }
       }
 
-      console.log('🟡 No image found in composite response');
       return null;
 
     } catch (error) {
@@ -956,7 +917,6 @@ Make it look like you took the original square meadow and added more meadow on b
       if (response.response.candidates?.[0]?.content?.parts) {
         for (const part of response.response.candidates[0].content.parts) {
           if (part.inlineData?.data && part.inlineData?.mimeType?.startsWith('image/')) {
-            console.log('🟡 Extended meadow generated successfully');
             return {
               imageData: Buffer.from(part.inlineData.data, 'base64'),
               mimeType: part.inlineData.mimeType
@@ -979,7 +939,6 @@ Make it look like you took the original square meadow and added more meadow on b
       return null;
     }
 
-    console.log('🎬 Generating animation frames:', frameTypes);
     const results: { [frameType: string]: { imageData: Buffer; mimeType: string } } = {};
 
     try {
@@ -1041,7 +1000,6 @@ CRITICAL: Use the reference image above as your exact template. Copy everything 
               const imageData = Buffer.from(part.inlineData.data, 'base64');
               const mimeType = part.inlineData.mimeType || 'image/png';
               results[frameType] = { imageData, mimeType };
-              console.log(`✅ Generated ${frameType} frame`);
               break;
             }
           }
@@ -1053,7 +1011,6 @@ CRITICAL: Use the reference image above as your exact template. Copy everything 
         }
       }
 
-      console.log('🎬 Animation frames generation completed');
       return results;
 
     } catch (error) {
@@ -1168,7 +1125,6 @@ ANIMATION CHANGE:
 
       const referenceFilename = referenceImageMap[frameType];
       if (!referenceFilename) {
-        console.log(`🎭 No reference image available for ${frameType}`);
         return null;
       }
 
@@ -1179,11 +1135,9 @@ ANIMATION CHANGE:
       const referenceBuffer = await fs.readFile(referencePath);
       const referenceBase64 = referenceBuffer.toString('base64');
       
-      console.log(`🎭 Loaded reference image for ${frameType}: ${referenceFilename}`);
       return referenceBase64;
       
     } catch (error) {
-      console.log(`🎭 Could not load reference image for ${frameType}:`, error);
       return null;
     }
   }
@@ -1196,7 +1150,6 @@ ANIMATION CHANGE:
     }
 
     try {
-      console.log('🟡 Generating image using Gemini 2.5 Flash Image Preview');
       const model = this.genAI.getGenerativeModel({ model: 'gemini-2.5-flash-image-preview' });
       
       const response = await this.retryWithBackoff(() => model.generateContent([{
@@ -1208,7 +1161,6 @@ ANIMATION CHANGE:
           if (part.inlineData && part.inlineData.data) {
             const imageData = Buffer.from(part.inlineData.data, 'base64');
             const mimeType = part.inlineData.mimeType || 'image/png';
-            console.log('🟡 Image generated successfully');
             return { imageData, mimeType };
           }
         }

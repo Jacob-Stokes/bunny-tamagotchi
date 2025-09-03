@@ -25,6 +25,9 @@ interface ActionsTabsProps {
   onTriggerAnimation?: (animationType: string) => void;
   debugMode?: boolean;
   onToggleDebugMode?: () => void;
+  onWardrobeSelectedItemsChange?: (items: {[slot: string]: string}) => void;
+  wardrobeSelectedItems?: {[slot: string]: string};
+  onClearWardrobeChanges?: () => void;
 }
 
 export default function ActionsTabs({ 
@@ -35,7 +38,10 @@ export default function ActionsTabs({
   onPersonalityChange,
   onTriggerAnimation,
   debugMode = false,
-  onToggleDebugMode = () => {}
+  onToggleDebugMode = () => {},
+  onWardrobeSelectedItemsChange,
+  wardrobeSelectedItems = {},
+  onClearWardrobeChanges
 }: ActionsTabsProps) {
   const [equippedItems, setEquippedItems] = useState<Array<{ item_id: string; slot: string; image_url: string; name: string }>>([]);
   const [showItemsManagement, setShowItemsManagement] = useState(false);
@@ -55,7 +61,7 @@ export default function ActionsTabs({
   
   const { signOut } = useAuth();
   const { state } = useBunny();
-  const { unreadCount, notifications, acknowledgeOutfitCompletion } = useNotifications();
+  const { unreadCount, notifications, acknowledgeOutfitCompletion, markAsRead } = useNotifications();
 
   // Load equipped items when bunny state changes
   useEffect(() => {
@@ -107,7 +113,6 @@ export default function ActionsTabs({
   const selectBaseBunny = (bunnyFileName: string) => {
     setCurrentBaseBunny(bunnyFileName);
     localStorage.setItem('selected-base-bunny', bunnyFileName);
-    console.log('Selected base bunny:', bunnyFileName);
   };
 
   const loadCurrentScene = () => {
@@ -120,7 +125,6 @@ export default function ActionsTabs({
   const selectScene = (sceneId: string) => {
     setCurrentScene(sceneId);
     localStorage.setItem('selected-scene', sceneId);
-    console.log('Selected scene:', sceneId);
   };
 
   const loadScenes = async () => {
@@ -191,7 +195,9 @@ export default function ActionsTabs({
     try {
       // Acknowledge the completion (this will assign the outfit and trigger regeneration)
       await acknowledgeOutfitCompletion(jobId);
-      console.log('✅ Outfit accepted and assigned');
+      
+      // Clear wardrobe changes after outfit is accepted
+      onClearWardrobeChanges?.();
       
     } catch (error) {
       console.error('Error accepting outfit:', error);
@@ -237,7 +243,12 @@ export default function ActionsTabs({
         )}
 
         {activeTab === 'wardrobe' && (
-          <Wardrobe bunnyImageUrl={bunnyImageUrl} />
+          <Wardrobe 
+            bunnyImageUrl={bunnyImageUrl}
+            onSelectedItemsChange={onWardrobeSelectedItemsChange}
+            selectedItems={wardrobeSelectedItems}
+            onClearChanges={onClearWardrobeChanges}
+          />
         )}
 
         {activeTab === 'chat' && (
@@ -260,6 +271,8 @@ export default function ActionsTabs({
                     className={`p-4 rounded-xl text-sm shadow-sm ${
                       notification.type === 'outfit_complete'
                         ? 'bg-green-50 border border-green-200'
+                        : notification.type === 'outfit_started'
+                        ? 'bg-blue-50 border border-blue-200'
                         : 'bg-red-50 border border-red-200'
                     }`}
                   >
@@ -271,14 +284,23 @@ export default function ActionsTabs({
                           {notification.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                         </p>
                       </div>
-                      {notification.type === 'outfit_complete' && (
+                      <div className="flex gap-2">
+                        {notification.type === 'outfit_complete' && (
+                          <button
+                            onClick={() => handleAcceptOutfit(notification.data?.jobId)}
+                            className="bg-green-500 text-white text-sm px-3 py-2 rounded-lg font-medium hover:bg-green-600 transition-colors flex-shrink-0"
+                          >
+                            Accept
+                          </button>
+                        )}
                         <button
-                          onClick={() => handleAcceptOutfit(notification.data?.jobId)}
-                          className="ml-3 bg-green-500 text-white text-sm px-3 py-2 rounded-lg font-medium hover:bg-green-600 transition-colors flex-shrink-0"
+                          onClick={() => markAsRead(notification.id)}
+                          className="text-gray-400 hover:text-gray-600 transition-colors flex-shrink-0 px-2"
+                          title="Dismiss notification"
                         >
-                          Accept
+                          ✕
                         </button>
-                      )}
+                      </div>
                     </div>
                   </div>
                 ))}

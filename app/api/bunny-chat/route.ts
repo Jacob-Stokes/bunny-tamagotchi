@@ -22,7 +22,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Gemini API key not configured' }, { status: 500 });
     }
 
-    console.log('🐰 Bunny chat request:', {
       bunny: bunnyContext.name,
       mood: bunnyContext.mood,
       outfit: bunnyContext.currentOutfit.map(item => item.name),
@@ -65,7 +64,6 @@ export async function POST(request: NextRequest) {
     const responseText = response.text();
 
     // Log for monitoring
-    console.log('🐰 Bunny response generated:', {
       bunny: bunnyContext.name,
       inputTokens: message.length,
       responseLength: responseText.length

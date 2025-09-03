@@ -34,7 +34,6 @@ export default function InventoryDebug() {
       
       setAllItems(items);
       setBunnyInventory(inventory);
-      console.log('Loaded inventory data:', { items: items.length, inventory });
     } catch (err: any) {
       setError(err.message);
       console.error('Error loading inventory:', err);
@@ -52,14 +51,10 @@ export default function InventoryDebug() {
   const addItemToBunny = async (itemId: string) => {
     if (!bunnyState.id) return;
     
-    console.log('🔴 AddItemToBunny called - itemId:', itemId, 'bunnyId:', bunnyState.id);
     
     try {
-      console.log('🔴 About to call InventoryService.addItemToInventory');
       await InventoryService.addItemToInventory(bunnyState.id, itemId, 1);
-      console.log('🔴 Successfully added item, now loading data');
       await loadData();
-      console.log('🔴 Added item to inventory:', itemId);
     } catch (err: any) {
       console.error('🔴 Error adding item:', err);
       setError(err.message);
@@ -70,12 +65,9 @@ export default function InventoryDebug() {
     if (!bunnyState.id) return;
     
     try {
-      console.log('Equipping item:', itemId, 'to bunny:', bunnyState.id);
       await InventoryService.equipItem(bunnyState.id, itemId);
       await loadData();
-      console.log('About to regenerate bunny image after equipping item');
       await regenerateBunnyImage();
-      console.log('Equipped item:', itemId);
     } catch (err: any) {
       setError(err.message);
     }
@@ -88,7 +80,6 @@ export default function InventoryDebug() {
       await InventoryService.unequipSlot(bunnyState.id, slot);
       await loadData();
       await regenerateBunnyImage();
-      console.log('Unequipped slot:', slot);
     } catch (err: any) {
       setError(err.message);
     }

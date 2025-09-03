@@ -139,7 +139,6 @@ export function BunnyProvider({ children }: { children: React.ReactNode }) {
         try {
           const parsedState = JSON.parse(saved);
           dispatch({ type: 'LOAD_STATE', payload: parsedState });
-          console.log('Loaded saved bunny state from localStorage:', parsedState);
         } catch (error) {
           console.error('Error parsing localStorage data:', error);
         }
@@ -192,7 +191,6 @@ export function BunnyProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (user?.id === 'guest-user' || !user) {
       localStorage.setItem('bunny-state', JSON.stringify(state));
-      console.log('Saved bunny state to localStorage:', state);
     }
   }, [state, user]);
 
@@ -205,7 +203,6 @@ export function BunnyProvider({ children }: { children: React.ReactNode }) {
     if (loading || !state.id || isGenerating) return;
 
     const checkExistingOutfit = async () => {
-      console.log('🔍 Checking for existing saved outfit');
       try {
         // Get current equipped items
         const { InventoryService } = await import('../lib/inventoryService');
@@ -232,19 +229,14 @@ export function BunnyProvider({ children }: { children: React.ReactNode }) {
 
         // If equipment hasn't changed, don't do anything
         if (currentEquipment === fullSignature && bunnyImageUrl) {
-          console.log('🚫 No equipment changes detected, keeping current image');
           return;
         }
 
-        console.log('🔄 Equipment signature changed, checking for saved outfit');
-        console.log('Previous:', currentEquipment);
-        console.log('Current:', fullSignature);
 
         setCurrentEquipment(fullSignature);
 
         // If no items equipped, use base bunny
         if (equippedItems.length === 0) {
-          console.log('📷 No items equipped, using base bunny');
           setBunnyImageUrl(getBaseBunnyPath());
           setImageLoading(false);
           return;
@@ -262,20 +254,16 @@ export function BunnyProvider({ children }: { children: React.ReactNode }) {
         );
         const outfitImageUrl = `/generated-bunnies/${cacheKey}/normal.png`;
         
-        console.log('🔍 Looking for existing outfit with cache key:', cacheKey);
         
         try {
           const response = await fetch(outfitImageUrl, { method: 'HEAD' });
           if (response.ok) {
-            console.log('✅ Found existing outfit image:', outfitImageUrl);
             setBunnyImageUrl(outfitImageUrl);
           } else {
-            console.log('📷 No existing outfit found, showing base bunny until outfit is generated');
             setBunnyImageUrl(getBaseBunnyPath());
           }
           setImageLoading(false);
         } catch {
-          console.log('📷 Error checking outfit, showing base bunny until outfit is generated');
           setBunnyImageUrl(getBaseBunnyPath());
           setImageLoading(false);
         }
@@ -293,7 +281,6 @@ export function BunnyProvider({ children }: { children: React.ReactNode }) {
   // Listen for force regeneration events (now only triggered by outfit saves)
   useEffect(() => {
     const handleForceRegenerate = async (event: any) => {
-      console.log('🔄 Received force regenerate event - outfit was saved', event.detail);
       if (!loading && state.id && !isGenerating) {
         // Add delay to ensure database changes have been committed
         const delay = event.detail?.fromOutfitAcceptance ? 1000 : 100;
@@ -304,11 +291,9 @@ export function BunnyProvider({ children }: { children: React.ReactNode }) {
             const inventoryData = await InventoryService.getBunnyFullInventory(state.id);
             const updatedEquipment = Object.values(inventoryData.equipment || {}).map(item => item.item_id);
             setCurrentEquipment(updatedEquipment);
-            console.log('🔄 Updated equipment state after outfit acceptance:', updatedEquipment);
             
             // Wait a bit more then regenerate
             setTimeout(async () => {
-              console.log('🔄 Starting bunny regeneration with new equipment...');
               await generateBunnyWithCurrentItems();
             }, 200);
           } catch (error) {
@@ -326,7 +311,6 @@ export function BunnyProvider({ children }: { children: React.ReactNode }) {
     const handleOutfitApplied = (event: any) => {
       const { imageUrl } = event.detail;
       if (imageUrl) {
-        console.log('🎨 Applying pre-generated outfit image:', imageUrl);
         setBunnyImageUrl(imageUrl);
         setImageGenerating(false); // Clear any generating state
       }
@@ -348,17 +332,14 @@ export function BunnyProvider({ children }: { children: React.ReactNode }) {
       if (!user || user.id === 'guest-user') {
         // Guest mode or no user - update locally
         dispatch({ type: 'UPDATE_STATS', payload: modifications });
-        console.log('Updated stats locally:', modifications);
       } else {
         // Authenticated user - update database
         if (state.id) {
           const updatedBunny = await BunnyService.updateBunnyStats(state.id, modifications);
           const bunnyState = BunnyService.toBunnyState(updatedBunny);
           dispatch({ type: 'LOAD_STATE', payload: bunnyState });
-          console.log('Updated stats in database');
         } else {
           // No bunny ID yet - get or create bunny first
-          console.log('No bunny ID, creating/getting bunny for authenticated user');
           const dbBunny = await BunnyService.getUserBunny(user.id);
           const bunnyState = BunnyService.toBunnyState(dbBunny);
           dispatch({ type: 'LOAD_STATE', payload: bunnyState });
@@ -367,7 +348,6 @@ export function BunnyProvider({ children }: { children: React.ReactNode }) {
           const updatedBunny = await BunnyService.updateBunnyStats(dbBunny.id, modifications);
           const updatedBunnyState = BunnyService.toBunnyState(updatedBunny);
           dispatch({ type: 'LOAD_STATE', payload: updatedBunnyState });
-          console.log('Created bunny and updated stats in database');
         }
       }
     } catch (error) {
@@ -380,7 +360,6 @@ export function BunnyProvider({ children }: { children: React.ReactNode }) {
   // Generate bunny with current equipment
   const generateBunnyWithCurrentItems = async () => {
     if (isGenerating) {
-      console.log('🔄 Already generating, skipping');
       return;
     }
 
@@ -403,7 +382,6 @@ export function BunnyProvider({ children }: { children: React.ReactNode }) {
       const selectedBaseBunny = localStorage.getItem('selected-base-bunny') || 'base-bunny-transparent.png';
       const selectedScene = localStorage.getItem('selected-scene') || 'meadow';
       
-      console.log('🎨 Calling generation API with', equippedItems.length, 'items');
 
       const response = await fetch('/api/generate-bunny-image', {
         method: 'POST',
@@ -425,11 +403,9 @@ export function BunnyProvider({ children }: { children: React.ReactNode }) {
 
       const result = await response.json();
       
-      console.log('✅ Generation complete:', result.imageUrl);
       setBunnyImageUrl(result.imageUrl);
       
       if (result.transparent?.applied) {
-        console.log('🎭 Background removed, bunny is now transparent');
       }
 
     } catch (error) {
@@ -443,7 +419,6 @@ export function BunnyProvider({ children }: { children: React.ReactNode }) {
 
   // Force regenerate current bunny (for refresh button)
   const regenerateBunnyImage = async () => {
-    console.log('🔄 Force regenerating bunny image and missing animation frames');
     
     if (!state.id) {
       setBunnyImageUrl(getBaseBunnyPath());
@@ -469,7 +444,6 @@ export function BunnyProvider({ children }: { children: React.ReactNode }) {
       const selectedBaseBunny = localStorage.getItem('selected-base-bunny') || 'base-bunny-transparent.png';
       const selectedScene = localStorage.getItem('selected-scene') || 'meadow';
       
-      console.log('🔄 Force regenerating with', equippedItems.length, 'items and missing animation frames');
 
       const response = await fetch('/api/generate-bunny-image', {
         method: 'POST',
@@ -492,7 +466,6 @@ export function BunnyProvider({ children }: { children: React.ReactNode }) {
 
       const result = await response.json();
       
-      console.log('✅ Force regeneration complete:', result.imageUrl);
       setBunnyImageUrl(result.imageUrl);
       
       // Clear equipment signature to ensure fresh state

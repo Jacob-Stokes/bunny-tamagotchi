@@ -8,7 +8,6 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { itemId, itemName, itemDescription, slot } = body;
 
-    console.log('Generate item image request for:', itemName);
 
     if (!itemId || !itemName || !itemDescription) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
@@ -19,7 +18,6 @@ export async function POST(request: NextRequest) {
     
     try {
       await require('fs/promises').access(itemImagePath);
-      console.log('Item image already exists:', `${itemId}.png`);
       return NextResponse.json({ 
         success: true, 
         imageUrl: `/items/${itemId}.png`,
@@ -57,7 +55,6 @@ The image should show just the ${slot} item itself, nothing else. Make it look l
 
     // Save the item image
     await writeFile(itemImagePath, result.imageData);
-    console.log('💾 Saved item image:', `${itemId}.png`);
 
     return NextResponse.json({ 
       success: true, 
