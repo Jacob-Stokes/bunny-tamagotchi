@@ -186,7 +186,7 @@ export default function Home() {
                       </div>
                     </div>
                   )}
-                    </AnimatedMeadowScene>
+                </AnimatedMeadowScene>
                   )}
                 </TimeOfDayManager>
               </div>

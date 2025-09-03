@@ -23,7 +23,7 @@ export default function Wardrobe({ className = '', bunnyImageUrl }: WardrobeProp
   const [saving, setSaving] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [selectedItemsForOutfit, setSelectedItemsForOutfit] = useState<{[slot: string]: string}>({});
-  const [showMode, setShowMode] = useState<'outfits' | 'favourites' | 'items'>('outfits');
+  const [showMode, setShowMode] = useState<'outfits' | 'favourites' | 'items' | 'shop'>('outfits');
   const [selectedItemType, setSelectedItemType] = useState<'head' | 'face' | 'upper_body' | 'lower_body' | 'feet' | 'accessory'>('head');
   const [savedOutfits, setSavedOutfits] = useState<Outfit[]>([]);
   const [generatedOutfits, setGeneratedOutfits] = useState<any[]>([]);
@@ -234,6 +234,48 @@ export default function Wardrobe({ className = '', bunnyImageUrl }: WardrobeProp
     } catch (error) {
       console.error('Failed to switch to outfit:', error);
       setError('Failed to switch to outfit');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // DEBUG: Regenerate outfit images (Admin only)
+  const regenerateOutfitImages = async (outfit: any) => {
+    if (!bunnyState.id) return;
+    
+    try {
+      setLoading(true);
+      const items = outfit.metadata?.equippedItems || [];
+      console.log(`🔧 DEBUG: Regenerating images for outfit: ${outfit.key}`, items);
+      
+      // Call the save-outfit API to regenerate images
+      const response = await fetch('/api/save-outfit', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-base-bunny': 'bunny-base.png', // Use default base bunny
+          'x-scene': 'meadow' // Use default scene
+        },
+        body: JSON.stringify({
+          bunny_id: bunnyState.id,
+          outfit_name: `Debug Regen - ${outfit.key}`,
+          selected_items: items
+        })
+      });
+      
+      const result = await response.json();
+      
+      if (response.ok) {
+        console.log('✅ DEBUG: Outfit images regenerated successfully');
+        // Reload outfits to show new images
+        await loadGeneratedOutfits();
+      } else {
+        console.error('❌ DEBUG: Failed to regenerate outfit images:', result.error);
+        setError(`Failed to regenerate: ${result.error}`);
+      }
+    } catch (error) {
+      console.error('❌ DEBUG: Error regenerating outfit images:', error);
+      setError('Failed to regenerate outfit images');
     } finally {
       setLoading(false);
     }
@@ -495,6 +537,49 @@ export default function Wardrobe({ className = '', bunnyImageUrl }: WardrobeProp
     return Object.values(bunnyInventory?.equipment || {}).some(eq => eq.item_id === itemId);
   };
 
+  // Check if an outfit is currently worn by comparing equipped items
+  const isOutfitCurrentlyWorn = (outfit: any) => {
+    if (!bunnyInventory?.equipment) return false;
+    
+    // Try different possible locations for equipped items data
+    const outfitItems = outfit.metadata?.equippedItems || outfit.equippedItems;
+    if (!outfitItems) return false;
+    
+    const currentEquippedIds = Object.values(bunnyInventory.equipment).map(eq => eq.item_id).sort();
+    
+    // Debug logging
+    console.log('🔍 Checking outfit:', {
+      outfitKey: outfit.key,
+      currentEquipped: currentEquippedIds,
+      outfitItems: outfitItems,
+      outfitItemsType: typeof outfitItems
+    });
+    
+    // Handle different data formats
+    let outfitItemIds;
+    if (Array.isArray(outfitItems)) {
+      // If it's an array of item IDs (strings)
+      if (typeof outfitItems[0] === 'string') {
+        outfitItemIds = outfitItems.sort();
+      } 
+      // If it's an array of item objects
+      else if (outfitItems[0]?.item_id) {
+        outfitItemIds = outfitItems.map(item => item.item_id).sort();
+      }
+      else {
+        return false;
+      }
+    } else {
+      return false;
+    }
+    
+    console.log('🔍 Comparison:', { currentEquippedIds, outfitItemIds });
+    
+    // Compare arrays - outfit is worn if all items match exactly
+    return currentEquippedIds.length === outfitItemIds.length && 
+           currentEquippedIds.every((id, index) => id === outfitItemIds[index]);
+  };
+
   if (!user || user.id === 'guest-user') {
     return (
       <div className={`text-center py-8 ${className}`}>
@@ -568,6 +653,17 @@ export default function Wardrobe({ className = '', bunnyImageUrl }: WardrobeProp
         >
           <span className="text-sm">🗄️</span>
           <span className="text-xs leading-tight">Items</span>
+        </button>
+        <button
+          onClick={() => setShowMode('shop')}
+          className={`flex-1 flex flex-col items-center justify-center h-8 rounded-lg text-xs font-medium transition-colors gap-0 ${
+            showMode === 'shop'
+              ? 'bg-white text-purple-800 shadow-sm'
+              : 'text-purple-700 hover:bg-white/20'
+          }`}
+        >
+          <span className="text-sm">🛒</span>
+          <span className="text-xs leading-tight">Shop</span>
         </button>
       </div>
 
@@ -707,7 +803,18 @@ export default function Wardrobe({ className = '', bunnyImageUrl }: WardrobeProp
             ) : (
               <div>
                 <div className="grid grid-cols-2 gap-4 max-h-96 overflow-y-auto">
-                  {generatedOutfits.map((outfit) => (
+                  {generatedOutfits
+                    .sort((a, b) => {
+                      // Sort currently worn outfit to the top
+                      const aWorn = isOutfitCurrentlyWorn(a);
+                      const bWorn = isOutfitCurrentlyWorn(b);
+                      if (aWorn && !bWorn) return -1;
+                      if (!aWorn && bWorn) return 1;
+                      return 0;
+                    })
+                    .map((outfit) => {
+                      const isCurrentlyWorn = isOutfitCurrentlyWorn(outfit);
+                      return (
                     <div key={outfit.key} className="relative group">
                       <div 
                         className="aspect-square rounded-xl border-2 border-gray-200 hover:border-purple-400 transition-all duration-200 cursor-pointer overflow-hidden bg-white shadow-sm hover:shadow-md"
@@ -748,6 +855,25 @@ export default function Wardrobe({ className = '', bunnyImageUrl }: WardrobeProp
                           </span>
                         </button>
                         
+                        {/* DEBUG button - bottom right (Admin only) */}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            regenerateOutfitImages(outfit);
+                          }}
+                          className="absolute bottom-2 right-2 z-10 p-1.5 rounded-full bg-orange-600 hover:bg-orange-700 text-white text-xs shadow-md"
+                          title="DEBUG: Regenerate outfit images"
+                        >
+                          🔧
+                        </button>
+                        
+                        {/* Currently worn indicator */}
+                        {isCurrentlyWorn && (
+                          <div className="absolute bottom-8 left-2 right-2 bg-green-600 text-white px-2 py-1 rounded text-xs font-medium text-center">
+                            ✓ Currently Worn
+                          </div>
+                        )}
+                        
                         {/* Just outfit name at bottom */}
                         <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-2">
                           <div className="text-white text-xs font-medium truncate text-center">
@@ -756,7 +882,8 @@ export default function Wardrobe({ className = '', bunnyImageUrl }: WardrobeProp
                         </div>
                       </div>
                     </div>
-                  ))}
+                  );
+                    })}
                 </div>
                 
               </div>
@@ -842,6 +969,15 @@ export default function Wardrobe({ className = '', bunnyImageUrl }: WardrobeProp
                       >
                         💔 Remove
                       </button>
+                      
+                      {/* DEBUG button for favorites */}
+                      <button
+                        onClick={() => regenerateOutfitImages(favouriteOutfitsList[currentFavouriteIndex])}
+                        className="bg-orange-100 text-orange-600 px-4 py-2.5 rounded-xl font-medium hover:bg-orange-200 transition-colors"
+                        title="DEBUG: Regenerate outfit images"
+                      >
+                        🔧 Debug
+                      </button>
                     </div>
                   </div>
                   
@@ -905,6 +1041,29 @@ export default function Wardrobe({ className = '', bunnyImageUrl }: WardrobeProp
               </div>
             );
           })()}
+        </div>
+      )}
+
+      {/* Shop Mode Content */}
+      {showMode === 'shop' && (
+        <div>
+          <div className="text-center py-8">
+            <div className="text-4xl mb-3">🛒</div>
+            <p className="text-purple-600 text-lg font-semibold mb-2">
+              Bunny Shop
+            </p>
+            <p className="text-purple-500 text-sm mb-4">
+              Purchase new items and outfits for your bunny
+            </p>
+            <div className="bg-purple-100 rounded-lg p-4 mt-4">
+              <p className="text-purple-700 text-sm">
+                🚧 Coming Soon! 🚧
+              </p>
+              <p className="text-purple-600 text-xs mt-1">
+                The shop is under construction. Soon you'll be able to buy new clothes, accessories, and special items for your bunny!
+              </p>
+            </div>
+          </div>
         </div>
       )}
     </div>

@@ -119,21 +119,26 @@ export async function POST(request: NextRequest) {
     // Generate bunny with equipment by calling the existing generation API
     console.log('🎨 Generating bunny images with equipment...');
     
-    const response = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/generate-bunny-image`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-base-bunny': selectedBaseBunny,
-        'x-scene': selectedScene,
-      },
-      body: JSON.stringify({ 
+    // Create a mock request object for the generate-bunny-image function
+    const mockRequest = {
+      json: async () => ({
         bunnyId: bunny_id,
         equippedItems: selected_items,
         generateAnimation: true,
         forceRegenerate: true
       }),
-    });
+      headers: {
+        get: (key: string) => {
+          if (key === 'x-base-bunny') return selectedBaseBunny;
+          if (key === 'x-scene') return selectedScene;
+          return null;
+        }
+      }
+    } as any;
 
+    // Import and call the POST function directly
+    const { POST: generateBunnyImage } = await import('../../api/generate-bunny-image/route');
+    const response = await generateBunnyImage(mockRequest);
     const result = await response.json();
     
     if (!response.ok) {

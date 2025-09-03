@@ -8,7 +8,7 @@ export class SceneCompositor {
    * Uses flood fill from edges to identify background areas
    */
   static async removeWhiteBackground(bunnyImagePath: string): Promise<Buffer> {
-    console.log('🎭 Removing white background from bunny...');
+    console.log('🎭 Removing white/gray background from bunny...');
     
     const bunnyBuffer = await readFile(bunnyImagePath);
     const { data, info } = await sharp(bunnyBuffer)
@@ -19,9 +19,14 @@ export class SceneCompositor {
     const { width, height, channels } = info;
     const pixelArray = new Uint8Array(data);
     
-    // Helper function to check if pixel is white or light gray (background)
-    const isWhitePixel = (r: number, g: number, b: number) => {
-      return r >= 200 && g >= 200 && b >= 200;
+    // Helper function to check if pixel is background (white, light gray, or medium gray)
+    const isBackgroundPixel = (r: number, g: number, b: number) => {
+      // Target a broader range: light colors AND gray backgrounds
+      // Check if it's grayish (all RGB values similar) and relatively bright
+      const isGrayish = Math.abs(r - g) < 30 && Math.abs(g - b) < 30 && Math.abs(r - b) < 30;
+      const isBright = (r + g + b) / 3 >= 150; // Lower threshold for grays
+      
+      return isGrayish && isBright;
     };
     
     // Create a map to track which pixels are background
@@ -48,8 +53,8 @@ export class SceneCompositor {
         const g = pixelArray[i + 1];
         const b = pixelArray[i + 2];
         
-        // If this pixel is white, mark as background and continue flood fill
-        if (isWhitePixel(r, g, b)) {
+        // If this pixel is background, mark as background and continue flood fill
+        if (isBackgroundPixel(r, g, b)) {
           backgroundMap.add(key);
           
           // Add neighbors to stack
@@ -68,13 +73,13 @@ export class SceneCompositor {
     for (let x = 0; x < width; x++) {
       // Top edge
       const topI = x * channels;
-      if (isWhitePixel(pixelArray[topI], pixelArray[topI + 1], pixelArray[topI + 2])) {
+      if (isBackgroundPixel(pixelArray[topI], pixelArray[topI + 1], pixelArray[topI + 2])) {
         floodFill(x, 0);
       }
       
       // Bottom edge
       const bottomI = ((height - 1) * width + x) * channels;
-      if (isWhitePixel(pixelArray[bottomI], pixelArray[bottomI + 1], pixelArray[bottomI + 2])) {
+      if (isBackgroundPixel(pixelArray[bottomI], pixelArray[bottomI + 1], pixelArray[bottomI + 2])) {
         floodFill(x, height - 1);
       }
     }
@@ -83,13 +88,13 @@ export class SceneCompositor {
     for (let y = 0; y < height; y++) {
       // Left edge
       const leftI = (y * width) * channels;
-      if (isWhitePixel(pixelArray[leftI], pixelArray[leftI + 1], pixelArray[leftI + 2])) {
+      if (isBackgroundPixel(pixelArray[leftI], pixelArray[leftI + 1], pixelArray[leftI + 2])) {
         floodFill(0, y);
       }
       
       // Right edge
       const rightI = (y * width + (width - 1)) * channels;
-      if (isWhitePixel(pixelArray[rightI], pixelArray[rightI + 1], pixelArray[rightI + 2])) {
+      if (isBackgroundPixel(pixelArray[rightI], pixelArray[rightI + 1], pixelArray[rightI + 2])) {
         floodFill(width - 1, y);
       }
     }
