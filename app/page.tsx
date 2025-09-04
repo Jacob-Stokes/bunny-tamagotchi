@@ -163,17 +163,37 @@ export default function Home() {
                         /* Wardrobe Items Mode: Split layout - Bunny left, Items right */
                         <div className="flex w-full h-full">
                           {/* White overlay behind bunny and outfit items for better visibility */}
-                          <div className="absolute inset-0 bg-white/85 rounded-2xl"></div>
+                          <div 
+                            className={`absolute inset-0 bg-white/85 rounded-2xl transition-all duration-500 ease-out ${
+                              activeTab === 'wardrobe' 
+                                ? 'transform translate-y-0 opacity-100' 
+                                : 'transform -translate-y-full opacity-0'
+                            }`}
+                          ></div>
                           
                           {/* Left: Bunny (takes 45% of space) */}
-                          <div style={{width: '45%'}} className="relative flex items-center justify-start pl-4 z-10">
+                          <div 
+                            style={{width: '45%'}} 
+                            className={`relative flex items-center justify-start pl-4 z-10 transition-all duration-500 ease-out ${
+                              activeTab === 'wardrobe'
+                                ? 'transform translate-x-0 opacity-100'
+                                : 'transform -translate-x-8 opacity-0'
+                            }`}
+                          >
                             {imageLoading ? (
                               <div className="text-center text-white">
                                 <div className="text-3xl mb-2 animate-bounce">🐰</div>
                                 <p className="text-xs font-medium">Loading...</p>
                               </div>
                             ) : (
-                              <div style={{ transform: 'scale(1.5)', transformOrigin: 'center' }}>
+                              <div 
+                                style={{ transform: 'scale(1.5)', transformOrigin: 'center' }}
+                                className={`transition-all duration-500 ease-out ${
+                                  activeTab === 'wardrobe'
+                                    ? 'transform translate-x-0'
+                                    : 'transform translate-x-4'
+                                }`}
+                              >
                                 <AnimatedBunny 
                                   bunnyImageUrl={bunnyImageUrl}
                                   alt="Bunny" 
@@ -186,7 +206,14 @@ export default function Home() {
                           </div>
                           
                           {/* Right: Selected Items Panel (takes 55% of space) */}
-                          <div style={{width: '55%'}} className="relative p-2">
+                          <div 
+                            style={{width: '55%'}} 
+                            className={`relative p-2 transition-all duration-500 ease-out delay-150 ${
+                              activeTab === 'wardrobe'
+                                ? 'transform translate-x-0 opacity-100'
+                                : 'transform translate-x-8 opacity-0'
+                            }`}
+                          >
                             <div 
                               className="bg-white/90 backdrop-blur-sm border border-white/30 rounded-xl p-3 h-full overflow-y-auto"
                               style={{ minHeight: '180px', maxHeight: '280px' }}
@@ -347,7 +374,13 @@ export default function Home() {
                         </div>
                       ) : (
                         /* Normal Mode: Centered bunny */
-                        <>
+                        <div 
+                          className={`w-full h-full flex items-center justify-center transition-all duration-500 ease-out ${
+                            activeTab !== 'wardrobe'
+                              ? 'transform translate-x-0 scale-100 opacity-100'
+                              : 'transform translate-x-2 scale-95 opacity-0'
+                          }`}
+                        >
                           {imageLoading ? (
                             <div className="text-center text-white">
                               <div className="text-4xl mb-2 animate-bounce">🐰</div>
@@ -362,7 +395,7 @@ export default function Home() {
                               debugMode={debugMode}
                             />
                           )}
-                        </>
+                        </div>
                       )}
                   
                       {/* Stats overlay - only show when NOT in wardrobe items mode */}
