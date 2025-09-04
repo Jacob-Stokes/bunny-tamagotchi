@@ -237,13 +237,19 @@ export default function Wardrobe({ className = '', bunnyImageUrl, onSelectedItem
       setLoading(true);
       const items = outfit.metadata?.equippedItems || [];
       
-      // Set the image URL while bunny is off-screen (400ms delay)
+      // Clear any wardrobe selections since we're switching to a pre-made outfit
+      setSelectedItemsForOutfit({});
+      setHasUnsavedChanges(false);
+      // Also clear parent component's wardrobe state
+      onSelectedItemsChange?.({});
+      
+      // Apply items to bunny equipment FIRST
+      await applyItemsToBunny(items);
+      
+      // THEN set the image URL after equipment is complete (ensure bunny is still off-screen)
       setTimeout(() => {
         setBunnyImageUrl(outfit.normalUrl);
-      }, 400);
-      
-      // Apply items to bunny equipment (can happen async)
-      await applyItemsToBunny(items);
+      }, 100);
       
     } catch (error) {
       console.error('Failed to switch to outfit:', error);
@@ -680,6 +686,43 @@ export default function Wardrobe({ className = '', bunnyImageUrl, onSelectedItem
         </button>
       </div>
 
+      {/* Apply Look Section - Always Visible with Dynamic States */}
+      <div className={`p-3 border rounded-lg mb-3 transition-colors ${
+        hasUnsavedChanges 
+          ? 'bg-purple-50 border-purple-200' 
+          : 'bg-gray-50 border-gray-200'
+      }`}>
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="text-sm font-medium mb-1">
+              {hasUnsavedChanges ? (
+                <span className="text-purple-800">✨ New Look Ready to Generate!</span>
+              ) : (
+                <span className="text-gray-600">👗 Outfit Customization</span>
+              )}
+            </div>
+            <div className="text-xs">
+              {hasUnsavedChanges ? (
+                <span className="text-purple-700">Your bunny is excited to try on this new outfit! It'll take a moment to get ready 🐰✨</span>
+              ) : (
+                <span className="text-gray-500">Add or remove items to create a new look for your bunny</span>
+              )}
+            </div>
+          </div>
+          <button
+            onClick={saveOutfit}
+            disabled={saving || !hasUnsavedChanges}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              hasUnsavedChanges
+                ? 'bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed'
+                : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+            }`}
+          >
+            {saving ? '🎨 Generating...' : hasUnsavedChanges ? '✨ Apply Look' : '💤 No Changes'}
+          </button>
+        </div>
+      </div>
+
       {/* Item Type Sub-tabs (only shown when Items tab is active) */}
       {showMode === 'items' && (
         <div className="flex justify-between mb-2 bg-white/20 rounded-xl p-1">
@@ -696,29 +739,6 @@ export default function Wardrobe({ className = '', bunnyImageUrl, onSelectedItem
               <span>{info.icon}</span>
             </button>
           ))}
-        </div>
-      )}
-
-      {/* Apply Look Section - Always Visible When Ready */}
-      {hasUnsavedChanges && (
-        <div className="p-3 bg-purple-50 border border-purple-200 rounded-lg">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="text-sm font-medium text-purple-800 mb-1">
-                ✨ New Look Ready to Generate!
-              </div>
-              <div className="text-xs text-purple-700">
-                Your bunny is excited to try on this new outfit! It'll take a moment to get ready 🐰✨
-              </div>
-            </div>
-            <button
-              onClick={saveOutfit}
-              disabled={saving}
-              className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
-            >
-              {saving ? '🎨 Generating...' : '✨ Apply Look'}
-            </button>
-          </div>
         </div>
       )}
 

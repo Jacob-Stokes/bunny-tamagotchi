@@ -22,12 +22,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Gemini API key not configured' }, { status: 500 });
     }
 
-      bunny: bunnyContext.name,
-      mood: bunnyContext.mood,
-      outfit: bunnyContext.currentOutfit.map(item => item.name),
-      messageLength: message.length
-    });
-
     // Import Gemini SDK
     const { GoogleGenerativeAI } = await import('@google/generative-ai');
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
