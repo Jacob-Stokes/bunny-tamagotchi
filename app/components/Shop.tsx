@@ -102,12 +102,6 @@ export default function Shop({ className = '', bunnyId }: ShopProps) {
 
   return (
     <div className={`p-4 ${className}`}>
-      {/* Shop Header */}
-      <div className="mb-6 text-center">
-        <h2 className="text-2xl font-bold mb-2">🛍️ Bunny Boutique</h2>
-        <p className="text-gray-600">Find the perfect items for your bunny!</p>
-      </div>
-
       {/* Catalogue Selection View */}
       {!selectedCatalogue && (
         <div>

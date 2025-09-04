@@ -687,12 +687,13 @@ export default function Wardrobe({ className = '', bunnyImageUrl, onSelectedItem
         </button>
       </div>
 
-      {/* Apply Look Section - Always Visible with Dynamic States */}
-      <div className={`p-3 border rounded-lg mb-3 transition-colors ${
-        hasUnsavedChanges 
-          ? 'bg-purple-50 border-purple-200' 
-          : 'bg-gray-50 border-gray-200'
-      }`}>
+      {/* Apply Look Section - Only Visible on Items Tab */}
+      {showMode === 'items' && (
+        <div className={`p-3 border rounded-lg mb-3 transition-colors ${
+          hasUnsavedChanges 
+            ? 'bg-purple-50 border-purple-200' 
+            : 'bg-gray-50 border-gray-200'
+        }`}>
         <div className="flex items-center justify-between">
           <div>
             <div className="text-sm font-medium mb-1">
@@ -722,7 +723,8 @@ export default function Wardrobe({ className = '', bunnyImageUrl, onSelectedItem
             {saving ? '🎨 Generating...' : hasUnsavedChanges ? '✨ Apply Look' : '💤 No Changes'}
           </button>
         </div>
-      </div>
+        </div>
+      )}
 
       {/* Item Type Sub-tabs (only shown when Items tab is active) */}
       {showMode === 'items' && (
@@ -746,13 +748,7 @@ export default function Wardrobe({ className = '', bunnyImageUrl, onSelectedItem
       {/* Items Mode Content - NEW OUTFIT CREATION WORKFLOW */}
       {showMode === 'items' && (
         <div className="flex flex-col h-full">
-          {/* Available Items for Current Category */}
           <div className="flex-1 min-h-0">
-            <div className="mb-2">
-              <h4 className="text-purple-800 font-medium text-sm">
-                {slotInfo[selectedItemType as SlotType].icon} {slotInfo[selectedItemType as SlotType].name} Items
-              </h4>
-            </div>
             
             {bunnyInventory && bunnyInventory.inventory.length === 0 ? (
               <div className="text-center py-6">
