@@ -9,6 +9,7 @@ import { useNotifications } from '../context/NotificationContext';
 import { Item, BunnyFullInventory, SlotType } from '../types/inventory';
 import OutfitPreview from './OutfitPreview';
 import AnimatedBunny from './BlinkingBunny';
+import Shop from './Shop';
 
 interface WardrobeProps {
   className?: string;
@@ -1084,24 +1085,11 @@ export default function Wardrobe({ className = '', bunnyImageUrl, onSelectedItem
 
       {/* Shop Mode Content */}
       {showMode === 'shop' && (
-        <div>
-          <div className="text-center py-8">
-            <div className="text-4xl mb-3">🛒</div>
-            <p className="text-purple-600 text-lg font-semibold mb-2">
-              Bunny Shop
-            </p>
-            <p className="text-purple-500 text-sm mb-4">
-              Purchase new items and outfits for your bunny
-            </p>
-            <div className="bg-purple-100 rounded-lg p-4 mt-4">
-              <p className="text-purple-700 text-sm">
-                🚧 Coming Soon! 🚧
-              </p>
-              <p className="text-purple-600 text-xs mt-1">
-                The shop is under construction. Soon you'll be able to buy new clothes, accessories, and special items for your bunny!
-              </p>
-            </div>
-          </div>
+        <div className="h-full overflow-y-auto">
+          <Shop 
+            bunnyId={bunnyState.id}
+            className="h-full"
+          />
         </div>
       )}
     </div>
