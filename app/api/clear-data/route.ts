@@ -7,54 +7,76 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Supabase is not configured' }, { status: 500 });
     }
 
+    console.log('Starting database clear operation...');
+
     // Clear bunny equipment (what items bunnies are wearing)
-    const { error: equipmentError } = await supabase
+    console.log('Clearing equipment...');
+    const { data: equipmentData, error: equipmentError } = await supabase
       .from('bunny_equipment')
       .delete()
-      .neq('id', '00000000-0000-0000-0000-000000000000'); // Delete all
+      .neq('id', '00000000-0000-0000-0000-000000000000') // Delete all records
+      .select();
 
     if (equipmentError) {
       console.error('Error clearing equipment:', equipmentError);
+    } else {
+      console.log('Cleared equipment records:', equipmentData?.length || 0);
     }
 
     // Clear bunny inventory (what items bunnies own)
-    const { error: inventoryError } = await supabase
+    console.log('Clearing inventory...');
+    const { data: inventoryData, error: inventoryError } = await supabase
       .from('bunny_inventory')
       .delete()
-      .neq('id', '00000000-0000-0000-0000-000000000000'); // Delete all
+      .neq('id', '00000000-0000-0000-0000-000000000000') // Delete all records
+      .select();
 
     if (inventoryError) {
       console.error('Error clearing inventory:', inventoryError);
+    } else {
+      console.log('Cleared inventory records:', inventoryData?.length || 0);
     }
 
     // Clear saved outfits
-    const { error: outfitsError } = await supabase
+    console.log('Clearing outfits...');
+    const { data: outfitsData, error: outfitsError } = await supabase
       .from('outfits')
       .delete()
-      .neq('id', '00000000-0000-0000-0000-000000000000'); // Delete all
+      .neq('id', '00000000-0000-0000-0000-000000000000') // Delete all records
+      .select();
 
     if (outfitsError) {
       console.error('Error clearing outfits:', outfitsError);
+    } else {
+      console.log('Cleared outfit records:', outfitsData?.length || 0);
     }
 
     // Clear outfit favourites
-    const { error: favouritesError } = await supabase
+    console.log('Clearing favourites...');
+    const { data: favouritesData, error: favouritesError } = await supabase
       .from('outfit_favourites')
       .delete()
-      .neq('id', '00000000-0000-0000-0000-000000000000'); // Delete all
+      .neq('id', '00000000-0000-0000-0000-000000000000') // Delete all records
+      .select();
 
     if (favouritesError) {
       console.error('Error clearing favourites:', favouritesError);
+    } else {
+      console.log('Cleared favourite records:', favouritesData?.length || 0);
     }
 
     // Clear outfit generation limits
-    const { error: limitsError } = await supabase
+    console.log('Clearing limits...');
+    const { data: limitsData, error: limitsError } = await supabase
       .from('outfit_generation_limits')
       .delete()
-      .neq('id', '00000000-0000-0000-0000-000000000000'); // Delete all
+      .neq('id', '00000000-0000-0000-0000-000000000000') // Delete all records
+      .select();
 
     if (limitsError) {
       console.error('Error clearing limits:', limitsError);
+    } else {
+      console.log('Cleared limit records:', limitsData?.length || 0);
     }
 
     // Reset bunny stats to default values
@@ -63,15 +85,13 @@ export async function POST(request: NextRequest) {
       .update({
         name: 'Bunny',
         connection: 50,
-        stimulation: 50,
-        comfort: 50,
-        energy: 50,
-        curiosity: 50,
+        stimulation: 60,
+        comfort: 70,
+        energy: 80,
+        curiosity: 40,
         whimsy: 50,
-        melancholy: 50,
-        wisdom: 50,
-        coins: 100,
-        experience: 0,
+        melancholy: 30,
+        wisdom: 20,
         updated_at: new Date().toISOString()
       })
       .neq('id', '00000000-0000-0000-0000-000000000000'); // Update all
@@ -93,10 +113,19 @@ export async function POST(request: NextRequest) {
       .from('outfits')
       .select('*', { count: 'exact', head: true });
 
+    console.log('Clear operation complete');
+    
     return NextResponse.json({
       success: true,
       message: 'Database cleared successfully',
-      counts: {
+      cleared: {
+        equipment: equipmentData?.length || 0,
+        inventory: inventoryData?.length || 0,
+        outfits: outfitsData?.length || 0,
+        favourites: favouritesData?.length || 0,
+        limits: limitsData?.length || 0
+      },
+      finalCounts: {
         equipment: equipmentCount || 0,
         inventory: inventoryCount || 0,
         outfits: outfitsCount || 0
