@@ -11,6 +11,7 @@ import { InventoryService } from '../lib/inventoryService';
 import { Item } from '../types/inventory';
 import Wardrobe from './Wardrobe';
 import BunnyChat from './BunnyChat';
+import Shop from './Shop';
 import AnimationDebugPanel from './AnimationDebugPanel';
 import InventoryDebug from './InventoryDebug';
 import AdminPanel from './AdminPanel';
@@ -19,7 +20,7 @@ import AdminOutfitPreview from './AdminOutfitPreview';
 interface ActionsTabsProps {
   performAction: (action: ActionType) => Promise<void>;
   bunnyImageUrl: string;
-  activeTab: 'actions' | 'wardrobe' | 'chat' | 'adventure' | 'settings';
+  activeTab: 'actions' | 'wardrobe' | 'chat' | 'shop' | 'adventure' | 'settings';
   personality?: BunnyPersonalityTraits;
   onPersonalityChange?: (personality: BunnyPersonalityTraits) => void;
   onTriggerAnimation?: (animationType: string) => void;
@@ -313,6 +314,13 @@ export default function ActionsTabs({
               </div>
             )}
           </div>
+        )}
+
+        {activeTab === 'shop' && (
+          <Shop 
+            bunnyId={state.id}
+            className="h-full overflow-y-auto"
+          />
         )}
 
         {activeTab === 'adventure' && (

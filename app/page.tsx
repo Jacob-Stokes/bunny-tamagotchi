@@ -18,7 +18,7 @@ export default function Home() {
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [debugTrigger, setDebugTrigger] = useState<string | null>(null);
   const [debugMode, setDebugMode] = useState(false);
-  const [activeTab, setActiveTab] = useState<'actions' | 'wardrobe' | 'chat' | 'adventure' | 'settings'>('actions');
+  const [activeTab, setActiveTab] = useState<'actions' | 'wardrobe' | 'chat' | 'shop' | 'adventure' | 'settings'>('actions');
   const [mounted, setMounted] = useState(false);
   const [showBunnyHopGame, setShowBunnyHopGame] = useState(false);
   const [wardrobeSelectedItems, setWardrobeSelectedItems] = useState<{[slot: string]: string}>({});
@@ -28,11 +28,12 @@ export default function Home() {
     { id: 'actions', label: 'Bunny', icon: '🐰' },
     { id: 'wardrobe', label: 'Wardrobe', icon: '🗄️' },
     { id: 'chat', label: 'Mailbox', icon: '📬' },
+    { id: 'shop', label: 'Shop', icon: '🛍️' },
     { id: 'adventure', label: 'Adventure', icon: '⚔️' },
     { id: 'settings', label: 'Settings', icon: '⚙️' },
   ] as const;
 
-  const handleTabChange = (tab: 'actions' | 'wardrobe' | 'chat' | 'adventure' | 'settings') => {
+  const handleTabChange = (tab: 'actions' | 'wardrobe' | 'chat' | 'shop' | 'adventure' | 'settings') => {
     setActiveTab(tab);
     // Close game when switching away from adventure tab
     if (tab !== 'adventure' && showBunnyHopGame) {
