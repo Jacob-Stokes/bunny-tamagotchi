@@ -333,4 +333,219 @@ export class InventoryService {
       throw error;
     }
   }
+
+  // Shop methods - integrate catalogue functionality
+  static async getShopItems(filter?: { category?: string; rarity?: string; maxPrice?: number }): Promise<Item[]> {
+    const baseFilter: ItemFilter = { is_purchaseable: true };
+    
+    if (filter?.category) baseFilter.category = filter.category;
+    if (filter?.rarity) baseFilter.rarity = filter.rarity as any;
+    
+    try {
+      const items = await this.getItems(baseFilter);
+      
+      // Filter by price if specified
+      if (filter?.maxPrice !== undefined) {
+        return items.filter(item => item.cost <= filter.maxPrice!);
+      }
+      
+      return items;
+    } catch (error) {
+      console.error('Error fetching shop items:', error);
+      throw error;
+    }
+  }
+
+  static async getShopCategories(): Promise<Array<{ category: string; count: number; icon: string; description: string }>> {
+    if (!isSupabaseConfigured || !supabase) {
+      // Return placeholder categories for development
+      return [
+        { category: 'hat', count: 5, icon: '🎩', description: 'Stylish headwear for every occasion' },
+        { category: 'shirt', count: 8, icon: '👕', description: 'Comfortable and fashionable tops' },
+        { category: 'accessory', count: 6, icon: '✨', description: 'Special items to complete your look' },
+        { category: 'shoes', count: 4, icon: '👟', description: 'Step out in style with these shoes' }
+      ];
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('items')
+        .select('category')
+        .eq('is_purchaseable', true);
+
+      if (error) throw error;
+
+      // Count items by category and add metadata
+      const categoryMap = new Map<string, number>();
+      data?.forEach(item => {
+        categoryMap.set(item.category, (categoryMap.get(item.category) || 0) + 1);
+      });
+
+      // Add icons and descriptions for categories
+      const categoryInfo: Record<string, { icon: string; description: string }> = {
+        hat: { icon: '🎩', description: 'Stylish headwear for every occasion' },
+        shirt: { icon: '👕', description: 'Comfortable and fashionable tops' },
+        dress: { icon: '👗', description: 'Beautiful dresses for special moments' },
+        accessory: { icon: '✨', description: 'Special items to complete your look' },
+        shoes: { icon: '👟', description: 'Step out in style with these shoes' },
+        glasses: { icon: '🕶️', description: 'See the world with style' },
+        scarf: { icon: '🧣', description: 'Cozy accessories for any weather' },
+      };
+
+      return Array.from(categoryMap.entries()).map(([category, count]) => ({
+        category,
+        count,
+        icon: categoryInfo[category]?.icon || '📦',
+        description: categoryInfo[category]?.description || 'Amazing items await'
+      }));
+    } catch (error) {
+      console.error('Error fetching shop categories:', error);
+      throw error;
+    }
+  }
+
+  static async purchaseItem(bunnyId: string, itemId: string, userId: string): Promise<{ success: boolean; message: string; item?: Item }> {
+    if (!isSupabaseConfigured || !supabase) {
+      // Mock purchase for development
+      return {
+        success: true,
+        message: 'Item purchased successfully! (Development mode)',
+      };
+    }
+
+    try {
+      // Get item details and verify it's purchaseable
+      const item = await this.getItem(itemId);
+      if (!item) {
+        return { success: false, message: 'Item not found' };
+      }
+
+      if (!item.is_purchaseable) {
+        return { success: false, message: 'This item is not available for purchase' };
+      }
+
+      // TODO: Check if user has enough currency (implement currency system)
+      // For now, assume purchase is always successful
+
+      // Add item to bunny's inventory
+      await this.addItemToInventory(bunnyId, itemId, 1);
+
+      return {
+        success: true,
+        message: `Successfully purchased ${item.name}!`,
+        item: item
+      };
+    } catch (error) {
+      console.error('Error purchasing item:', error);
+      return {
+        success: false,
+        message: 'Purchase failed. Please try again.'
+      };
+    }
+  }
+
+  // Helper method to check if bunny already owns an item
+  static async bunnyOwnsItem(bunnyId: string, itemId: string): Promise<boolean> {
+    if (!isSupabaseConfigured || !supabase) {
+      return false;
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('bunny_inventory')
+        .select('id')
+        .eq('bunny_id', bunnyId)
+        .eq('item_id', itemId)
+        .maybeSingle();
+
+      if (error) throw error;
+      return !!data;
+    } catch (error) {
+      console.error('Error checking item ownership:', error);
+      return false;
+    }
+  }
+
+  // Transaction support methods for data consistency
+  static async applyOutfitWithTransaction(
+    bunnyId: string, 
+    outfitItems: Array<{item_id: string; slot: SlotType}>
+  ): Promise<void> {
+    if (!isSupabaseConfigured || !supabase) {
+      throw new Error('Supabase is not configured');
+    }
+
+    try {
+      // Use PostgreSQL transaction for atomicity
+      const { error } = await supabase.rpc('apply_outfit_atomic', {
+        p_bunny_id: bunnyId,
+        p_outfit_items: JSON.stringify(outfitItems)
+      });
+
+      if (error) {
+        // Fall back to manual approach if RPC doesn't exist
+        console.warn('Transaction RPC not available, using sequential approach');
+        await this.applyOutfitSequentially(bunnyId, outfitItems);
+      }
+    } catch (error) {
+      console.error('Error in outfit transaction:', error);
+      throw error;
+    }
+  }
+
+  static async applyOutfitSequentially(
+    bunnyId: string, 
+    outfitItems: Array<{item_id: string; slot: SlotType}>
+  ): Promise<void> {
+    // Manual transaction simulation - unequip all first, then equip new items
+    const currentEquipment = await this.getBunnyFullInventory(bunnyId);
+    const currentSlots = Object.keys(currentEquipment.equipment);
+
+    try {
+      // Step 1: Unequip all current items
+      for (const slot of currentSlots) {
+        await this.unequipSlot(bunnyId, slot as SlotType);
+      }
+
+      // Step 2: Equip all new items
+      for (const outfitItem of outfitItems) {
+        await this.equipItem(bunnyId, outfitItem.item_id);
+      }
+    } catch (error) {
+      // If anything fails, we could try to restore the previous state
+      // but for now, we'll just throw the error
+      console.error('Error in sequential outfit application:', error);
+      throw error;
+    }
+  }
+
+  // Batch operations for better performance
+  static async equipMultipleItems(
+    bunnyId: string,
+    items: Array<{item_id: string; slot: SlotType}>
+  ): Promise<void> {
+    if (!isSupabaseConfigured || !supabase) {
+      throw new Error('Supabase is not configured');
+    }
+
+    try {
+      // Batch insert equipment records
+      const equipmentRecords = items.map(item => ({
+        bunny_id: bunnyId,
+        item_id: item.item_id,
+        slot: item.slot
+      }));
+
+      const { error } = await supabase
+        .from('bunny_equipment')
+        .upsert(equipmentRecords, {
+          onConflict: 'bunny_id,slot'
+        });
+
+      if (error) throw error;
+    } catch (error) {
+      console.error('Error batch equipping items:', error);
+      throw error;
+    }
+  }
 }

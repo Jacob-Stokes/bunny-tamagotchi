@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { SlotType } from '../types/inventory';
 
 export interface Outfit {
   id: string;
@@ -7,7 +8,7 @@ export interface Outfit {
   name: string;
   equipped_items: Array<{
     item_id: string;
-    slot: string;
+    slot: SlotType;
     image_url: string;
     name: string;
   }>;
@@ -40,7 +41,7 @@ export interface CreateOutfitData {
   name: string;
   equipped_items: Array<{
     item_id: string;
-    slot: string;
+    slot: SlotType;
     image_url: string;
     name: string;
   }>;
@@ -55,31 +56,56 @@ export interface CreateOutfitData {
 }
 
 export class OutfitService {
-  static async createOutfit(data: CreateOutfitData): Promise<Outfit> {
-    // For now, skip database operations since tables don't exist yet
-    // TODO: Implement after running migrations
+  static async createOutfit(data: CreateOutfitData, userId: string): Promise<Outfit> {
+    if (!supabase) {
+      throw new Error('Supabase client not initialized');
+    }
 
-    // Return a mock outfit object with fake user ID
-    return {
-      id: 'temp-' + Date.now(),
-      bunny_id: data.bunny_id,
-      user_id: 'temp-user',
-      name: data.name,
-      equipped_items: data.equipped_items,
-      equipment_signature: this.createEquipmentSignature(data.equipped_items, data.base_bunny, data.scene),
-      base_bunny: data.base_bunny,
-      scene: data.scene,
-      image_urls: data.image_urls,
-      is_active: true,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    };
+    try {
+      const equipmentSignature = this.createEquipmentSignature(data.equipped_items, data.base_bunny, data.scene);
+      
+      const { data: outfit, error } = await supabase
+        .from('outfits')
+        .insert({
+          bunny_id: data.bunny_id,
+          user_id: userId,
+          name: data.name,
+          equipped_items: data.equipped_items,
+          equipment_signature: equipmentSignature,
+          base_bunny: data.base_bunny,
+          scene: data.scene,
+          image_urls: data.image_urls,
+          is_active: false // Don't auto-activate, let user choose
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+      return outfit;
+    } catch (error) {
+      console.error('Error creating outfit:', error);
+      throw error;
+    }
   }
 
   static async getUserOutfits(bunnyId: string): Promise<Outfit[]> {
-    // For now, return empty array since tables don't exist yet
-    // TODO: Implement after running migrations
-    return [];
+    if (!supabase) {
+      throw new Error('Supabase client not initialized');
+    }
+
+    try {
+      const { data: outfits, error } = await supabase
+        .from('outfits')
+        .select('*')
+        .eq('bunny_id', bunnyId)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      return outfits || [];
+    } catch (error) {
+      console.error('Error fetching user outfits:', error);
+      throw error;
+    }
   }
 
   static async getActiveOutfit(bunnyId: string): Promise<Outfit | null> {
@@ -106,35 +132,42 @@ export class OutfitService {
       throw new Error('Supabase client not initialized');
     }
 
-    // Set all outfits for this bunny as inactive
-    await supabase
-      .from('outfits')
-      .update({ is_active: false })
-      .eq('bunny_id', bunnyId);
+    try {
+      // Set all outfits for this bunny as inactive
+      await supabase
+        .from('outfits')
+        .update({ is_active: false })
+        .eq('bunny_id', bunnyId);
 
-    // Set the selected outfit as active
-    const { error } = await supabase
-      .from('outfits')
-      .update({ is_active: true })
-      .eq('id', outfitId);
+      // Set the selected outfit as active
+      const { error } = await supabase
+        .from('outfits')
+        .update({ is_active: true })
+        .eq('id', outfitId);
 
-    if (error) {
-      throw new Error(`Failed to set active outfit: ${error.message}`);
+      if (error) throw error;
+    } catch (error) {
+      console.error('Error setting active outfit:', error);
+      throw error;
     }
   }
 
-  static async deleteOutfit(outfitId: string): Promise<void> {
+  static async deleteOutfit(outfitId: string, userId: string): Promise<void> {
     if (!supabase) {
       throw new Error('Supabase client not initialized');
     }
 
-    const { error } = await supabase
-      .from('outfits')
-      .delete()
-      .eq('id', outfitId);
+    try {
+      const { error } = await supabase
+        .from('outfits')
+        .delete()
+        .eq('id', outfitId)
+        .eq('user_id', userId); // Ensure user can only delete their own outfits
 
-    if (error) {
-      throw new Error(`Failed to delete outfit: ${error.message}`);
+      if (error) throw error;
+    } catch (error) {
+      console.error('Error deleting outfit:', error);
+      throw error;
     }
   }
 
@@ -241,27 +274,54 @@ export class OutfitService {
     return `${baseBunny}|${scene}|${sortedItems}`;
   }
 
-  // Favourite methods
-  static async getFavouriteOutfits(userId: string): Promise<string[]> {
+  // Favourite methods (outfit_key is used for generated outfits, outfit_id for saved outfits)
+  static async getFavouriteOutfitKeys(userId: string): Promise<string[]> {
+    if (!supabase) return [];
+    
     try {
       const { data, error } = await supabase
         .from('outfit_favourites')
         .select('outfit_key')
-        .eq('user_id', userId);
+        .eq('user_id', userId)
+        .not('outfit_key', 'is', null);
 
       if (error) {
-        console.error('Error fetching favourite outfits:', error);
+        console.error('Error fetching favourite outfit keys:', error);
         return [];
       }
 
-      return data.map(row => row.outfit_key);
+      return data?.map(row => row.outfit_key) || [];
     } catch (error) {
-      console.error('Error in getFavouriteOutfits:', error);
+      console.error('Error in getFavouriteOutfitKeys:', error);
       return [];
     }
   }
 
-  static async addToFavourites(userId: string, outfitKey: string): Promise<boolean> {
+  static async getFavouriteOutfitIds(userId: string): Promise<string[]> {
+    if (!supabase) return [];
+    
+    try {
+      const { data, error } = await supabase
+        .from('outfit_favourites')
+        .select('outfit_id')
+        .eq('user_id', userId)
+        .not('outfit_id', 'is', null);
+
+      if (error) {
+        console.error('Error fetching favourite outfit IDs:', error);
+        return [];
+      }
+
+      return data?.map(row => row.outfit_id) || [];
+    } catch (error) {
+      console.error('Error in getFavouriteOutfitIds:', error);
+      return [];
+    }
+  }
+
+  static async addOutfitKeyToFavourites(userId: string, outfitKey: string): Promise<boolean> {
+    if (!supabase) return false;
+    
     try {
       const { error } = await supabase
         .from('outfit_favourites')
@@ -270,19 +330,44 @@ export class OutfitService {
           outfit_key: outfitKey
         });
 
-      if (error) {
-        console.error('Error adding to favourites:', error);
+      if (error && error.code !== '23505') { // Ignore duplicate key errors
+        console.error('Error adding outfit key to favourites:', error);
         return false;
       }
 
       return true;
     } catch (error) {
-      console.error('Error in addToFavourites:', error);
+      console.error('Error in addOutfitKeyToFavourites:', error);
       return false;
     }
   }
 
-  static async removeFromFavourites(userId: string, outfitKey: string): Promise<boolean> {
+  static async addOutfitIdToFavourites(userId: string, outfitId: string): Promise<boolean> {
+    if (!supabase) return false;
+    
+    try {
+      const { error } = await supabase
+        .from('outfit_favourites')
+        .insert({
+          user_id: userId,
+          outfit_id: outfitId
+        });
+
+      if (error && error.code !== '23505') { // Ignore duplicate key errors
+        console.error('Error adding outfit ID to favourites:', error);
+        return false;
+      }
+
+      return true;
+    } catch (error) {
+      console.error('Error in addOutfitIdToFavourites:', error);
+      return false;
+    }
+  }
+
+  static async removeOutfitKeyFromFavourites(userId: string, outfitKey: string): Promise<boolean> {
+    if (!supabase) return false;
+    
     try {
       const { error } = await supabase
         .from('outfit_favourites')
@@ -291,13 +376,35 @@ export class OutfitService {
         .eq('outfit_key', outfitKey);
 
       if (error) {
-        console.error('Error removing from favourites:', error);
+        console.error('Error removing outfit key from favourites:', error);
         return false;
       }
 
       return true;
     } catch (error) {
-      console.error('Error in removeFromFavourites:', error);
+      console.error('Error in removeOutfitKeyFromFavourites:', error);
+      return false;
+    }
+  }
+
+  static async removeOutfitIdFromFavourites(userId: string, outfitId: string): Promise<boolean> {
+    if (!supabase) return false;
+    
+    try {
+      const { error } = await supabase
+        .from('outfit_favourites')
+        .delete()
+        .eq('user_id', userId)
+        .eq('outfit_id', outfitId);
+
+      if (error) {
+        console.error('Error removing outfit ID from favourites:', error);
+        return false;
+      }
+
+      return true;
+    } catch (error) {
+      console.error('Error in removeOutfitIdFromFavourites:', error);
       return false;
     }
   }
