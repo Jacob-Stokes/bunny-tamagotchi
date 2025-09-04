@@ -58,6 +58,7 @@ export async function POST(request: NextRequest) {
     const responseText = response.text();
 
     // Log for monitoring
+    console.log({
       bunny: bunnyContext.name,
       inputTokens: message.length,
       responseLength: responseText.length

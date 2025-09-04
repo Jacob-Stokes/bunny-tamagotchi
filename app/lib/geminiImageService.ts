@@ -179,7 +179,7 @@ This should look like official character art for a mobile game - high quality, c
         case 'head':
           return `the ${itemName} from image ${imageIndex} positioned naturally on the bunny's head`;
         case 'face':
-          return `the ${itemName} from image ${imageIndex} as an overlay`;
+          return `the ${itemName} from image ${imageIndex} naturally integrated and fitted on the bunny's face`;
         case 'upper_body':
           return `the ${itemName} from image ${imageIndex} fitted on the bunny's upper body/torso`;
         case 'lower_body':
@@ -187,13 +187,13 @@ This should look like official character art for a mobile game - high quality, c
         case 'feet':
           return `the ${itemName} from image ${imageIndex} worn properly ON the bunny's feet (the bunny's feet should be INSIDE the shoes/boots, not below them or separate from them)`;
         case 'accessory':
-          return `the ${itemName} from image ${imageIndex} added as an accessory`;
+          return `the ${itemName} from image ${imageIndex} naturally worn as an accessory that fits the bunny's proportions`;
         default:
           return `the ${itemName} from image ${imageIndex} fitted properly on the bunny's ${item.slot.replace('_', ' ')}`;
       }
     }).join(', and ');
 
-    return `Add ${itemDescriptions} to the bunny from image 1. Keep the same pixel art style and overall bunny appearance, but fit the clothing items naturally and properly on the bunny. CRITICAL FOR SHOES/BOOTS: The bunny's feet must be INSIDE the footwear, not below it or separate from it - the shoes should replace or cover the bunny's original feet. Make sure all items fit the bunny's body proportions correctly.`;
+    return `Dress the bunny from image 1 with ${itemDescriptions}. Integrate each item naturally into the bunny's design as if they were drawn as part of the original character - NOT as separate overlays on top. Maintain the same pixel art style and bunny proportions, but make the clothing look like it belongs on the bunny's body. CRITICAL FOR SHOES/BOOTS: The bunny's feet must be INSIDE the footwear, replacing the original feet. Face items like glasses or masks should fit the bunny's face shape naturally. All items should appear to be worn by the bunny, not floating above it.`;
   }
 
   // Simple scene compositing using Sharp's built-in chroma key
@@ -422,7 +422,7 @@ This should look like official character art for a mobile game - high quality, c
             itemDescription = `${itemName} on the bunny's head`;
             break;
           case 'face':
-            itemDescription = `${itemName} as an overlay`;
+            itemDescription = `${itemName} naturally integrated and fitted on the bunny's face`;
             break;
           case 'upper_body':
             itemDescription = `${itemName} on the bunny's upper body`;
@@ -441,7 +441,7 @@ This should look like official character art for a mobile game - high quality, c
             break;
         }
 
-        const prompt = `Add the ${itemDescription} from image 2 to the bunny from image 1. Keep the same pixel art style and overall bunny appearance, but fit the item naturally and properly on the bunny's body. CRITICAL FOR SHOES/BOOTS: The bunny's feet must be INSIDE the footwear, not below it or separate from it - the shoes should replace or cover the bunny's original feet. Make sure the item fits the bunny's proportions correctly. Use a clean white background.`;
+        const prompt = `Dress the bunny from image 1 with the ${itemDescription} from image 2. Integrate the item naturally into the bunny's design as if it were drawn as part of the original character - NOT as a separate overlay on top. Keep the same pixel art style and bunny proportions, but make the item look like it belongs on the bunny's body. CRITICAL FOR SHOES/BOOTS: The bunny's feet must be INSIDE the footwear, replacing the original feet. Face items should fit the bunny's face shape naturally. The item should appear to be worn by the bunny, not floating above it. Use a clean white background.`;
 
         const contentParts = [
           {
@@ -541,7 +541,7 @@ This should look like official character art for a mobile game - high quality, c
       }).join(', and ');
       
       const prompt = equippedItems.length > 0 
-        ? `Add ${itemDescriptions} to the bunny from image 1. Keep the same pixel art style and overall bunny appearance, but fit the clothing items naturally and properly on the bunny. CRITICAL FOR SHOES/BOOTS: The bunny's feet must be INSIDE the footwear, not below it or separate from it - the shoes should replace or cover the bunny's original feet. Make sure items fit the bunny's body proportions correctly. Use a clean white background.`
+        ? `Dress the bunny from image 1 with ${itemDescriptions}. Integrate each item naturally into the bunny's design as if they were drawn as part of the original character - NOT as separate overlays on top. Maintain the same pixel art style and bunny proportions, but make the clothing look like it belongs on the bunny's body. CRITICAL FOR SHOES/BOOTS: The bunny's feet must be INSIDE the footwear, replacing the original feet. Face items should fit the bunny's face shape naturally. All items should appear to be worn by the bunny, not floating above it. Use a clean white background.`
         : `Create an image with this bunny character from image 1. Keep the same pixel art style. Use a clean white background.`;
       
 
