@@ -168,6 +168,22 @@ export function BunnyProvider({ children }: { children: React.ReactNode }) {
         const dbBunny = await BunnyService.getUserBunny(user.id);
         const bunnyState = BunnyService.toBunnyState(dbBunny);
         dispatch({ type: 'LOAD_STATE', payload: bunnyState });
+
+        // DEBUG: Auto-populate inventory with all items for testing
+        try {
+          console.log('🔧 DEBUG: Auto-populating bunny inventory...');
+          const response = await fetch('/api/debug-populate-inventory', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ bunnyId: bunnyState.id })
+          });
+          const result = await response.json();
+          if (result.success) {
+            console.log(`✅ DEBUG: Added ${result.addedItems} items to inventory`);
+          }
+        } catch (error) {
+          console.log('🔧 DEBUG: Inventory population failed (non-critical):', error);
+        }
       }
     } catch (error) {
       console.error('Error loading bunny data:', error);
@@ -235,9 +251,9 @@ export function BunnyProvider({ children }: { children: React.ReactNode }) {
 
         setCurrentEquipment(fullSignature);
 
-        // If no items equipped, use base bunny
+        // If no items equipped, use base-bunny-clean (transparent processed base)
         if (equippedItems.length === 0) {
-          setBunnyImageUrl(getBaseBunnyPath());
+          setBunnyImageUrl('/generated-bunnies/base-bunny-clean/normal.png');
           setImageLoading(false);
           return;
         }
@@ -260,17 +276,20 @@ export function BunnyProvider({ children }: { children: React.ReactNode }) {
           if (response.ok) {
             setBunnyImageUrl(outfitImageUrl);
           } else {
-            setBunnyImageUrl(getBaseBunnyPath());
+            // If generated outfit doesn't exist, fall back to base-bunny-clean
+            setBunnyImageUrl('/generated-bunnies/base-bunny-clean/normal.png');
           }
           setImageLoading(false);
         } catch {
-          setBunnyImageUrl(getBaseBunnyPath());
+          // If fetch fails, fall back to base-bunny-clean
+          setBunnyImageUrl('/generated-bunnies/base-bunny-clean/normal.png');
           setImageLoading(false);
         }
 
       } catch (error) {
         console.error('Error checking existing outfit:', error);
-        setBunnyImageUrl(getBaseBunnyPath());
+        // If entire outfit check fails, fall back to base-bunny-clean
+        setBunnyImageUrl('/generated-bunnies/base-bunny-clean/normal.png');
         setImageLoading(false);
       }
     };
