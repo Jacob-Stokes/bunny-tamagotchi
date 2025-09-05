@@ -12,6 +12,7 @@ interface AnimatedBunnyProps {
 }
 
 export default function AnimatedBunny({ bunnyImageUrl, className, alt = "Bunny", debugTrigger, debugMode = false, isSad = false }: AnimatedBunnyProps) {
+  console.log('🎭 BlinkingBunny received bunnyImageUrl:', bunnyImageUrl);
   const [isBlinking, setIsBlinking] = useState(false);
   const [isSmiling, setIsSmiling] = useState(false);
   const [isWaving, setIsWaving] = useState(false);

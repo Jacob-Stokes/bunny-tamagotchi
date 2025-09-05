@@ -38,6 +38,29 @@ interface UFO {
   fadingOut: boolean;
 }
 
+interface Plane {
+  id: number;
+  x: number;
+  y: number;
+  speed: number;
+  fadingOut: boolean;
+  contrailSegments: Array<{x: number; y: number; age: number}>;
+}
+
+interface BalloonGroup {
+  id: number;
+  x: number;
+  y: number;
+  speed: number;
+  fadingOut: boolean;
+  balloons: Array<{
+    offsetX: number;
+    offsetY: number;
+    color: string;
+    bobPhase: number;
+  }>;
+}
+
 interface AnimatedMeadowSceneProps {
   children?: React.ReactNode;
   hour?: number;
@@ -51,6 +74,8 @@ export default function AnimatedMeadowScene({ children, hour = 12, wardrobeMode 
   const [birds, setBirds] = useState<Bird[]>([]);
   const [shootingStars, setShootingStars] = useState<ShootingStar[]>([]);
   const [ufos, setUfos] = useState<UFO[]>([]);
+  const [planes, setPlanes] = useState<Plane[]>([]);
+  const [balloonGroups, setBalloonGroups] = useState<BalloonGroup[]>([]);
   const [scene, setScene] = useState<SceneType>('outdoor');
   const [currentSkyHour, setCurrentSkyHour] = useState<number>(hour);
   const [nextSkyHour, setNextSkyHour] = useState<number>(hour);
@@ -271,6 +296,111 @@ export default function AnimatedMeadowScene({ children, hour = 12, wardrobeMode 
 
     const ufoInterval = setInterval(animateUfos, 100); // Fast smooth movement like shooting stars
     return () => clearInterval(ufoInterval);
+  }, [hour]);
+
+  // Plane animation effect (daytime only)
+  useEffect(() => {
+    const animatePlanes = () => {
+      setPlanes(prevPlanes => {
+        const isDayTime = hour >= 8 && hour < 18; // Planes active 8am-6pm
+        
+        // Move planes and update contrails
+        let updatedPlanes = prevPlanes.map(plane => {
+          // Update contrail segments
+          const updatedContrailSegments = plane.contrailSegments
+            .map(segment => ({ ...segment, age: segment.age + 1 })) // Age segments
+            .filter(segment => segment.age < 20); // Remove old segments
+          
+          // Add new contrail segment at plane position
+          if (!plane.fadingOut) {
+            updatedContrailSegments.push({
+              x: plane.x - 5, // Behind the plane
+              y: plane.y + 4, // Center of plane
+              age: 0
+            });
+          }
+          
+          return {
+            ...plane,
+            x: plane.x + plane.speed,
+            contrailSegments: updatedContrailSegments,
+            fadingOut: plane.fadingOut || !isDayTime
+          };
+        });
+        
+        // Remove planes that have flown off screen
+        updatedPlanes = updatedPlanes.filter(plane => plane.x < 500 && !(plane.fadingOut && plane.x > -30));
+        
+        // Spawn new planes (rare during day)
+        if (isDayTime && Math.random() < 0.02 && updatedPlanes.filter(p => !p.fadingOut).length < 1) {
+          const newPlane: Plane = {
+            id: Math.max(...updatedPlanes.map(p => p.id), 0) + 1,
+            x: -30, // Start off-screen left
+            y: Math.random() * 40 + 20, // Random height in upper sky
+            speed: Math.random() * 2 + 3, // Fast movement
+            fadingOut: false,
+            contrailSegments: []
+          };
+          updatedPlanes.push(newPlane);
+        }
+        
+        return updatedPlanes;
+      });
+    };
+
+    const planeInterval = setInterval(animatePlanes, 120); // Smooth movement
+    return () => clearInterval(planeInterval);
+  }, [hour]);
+
+  // Hot air balloon animation effect (daytime only)
+  useEffect(() => {
+    const animateBalloons = () => {
+      setBalloonGroups(prevGroups => {
+        const isDayTime = hour >= 9 && hour < 17; // Balloons active 9am-5pm
+        
+        // Move balloon groups and update individual balloon positions
+        let updatedGroups = prevGroups.map(group => ({
+          ...group,
+          x: group.x + group.speed,
+          balloons: group.balloons.map(balloon => ({
+            ...balloon,
+            bobPhase: balloon.bobPhase + 0.05 // Slow bobbing motion
+          })),
+          fadingOut: group.fadingOut || !isDayTime
+        }));
+        
+        // Remove groups that have drifted off screen
+        updatedGroups = updatedGroups.filter(group => group.x < 500 && !(group.fadingOut && group.x > -50));
+        
+        // Spawn new balloon groups (very rare)
+        if (isDayTime && Math.random() < 0.015 && updatedGroups.filter(g => !g.fadingOut).length < 1) {
+          const balloonColors = ['red', 'blue', 'yellow', 'green', 'purple', 'orange'];
+          
+          // Create group of 3 balloons with random colors
+          const groupBalloons = Array.from({length: 3}, (_, i) => ({
+            offsetX: i * 25 + Math.random() * 10 - 5, // Spread horizontally with some randomness
+            offsetY: Math.random() * 15 - 7.5, // Random vertical offset
+            color: balloonColors[Math.floor(Math.random() * balloonColors.length)],
+            bobPhase: Math.random() * Math.PI * 2 // Random starting bob phase
+          }));
+          
+          const newGroup: BalloonGroup = {
+            id: Math.max(...updatedGroups.map(g => g.id), 0) + 1,
+            x: -70, // Start off-screen left (wider for group)
+            y: Math.random() * 60 + 30, // Random height
+            speed: Math.random() * 0.5 + 0.3, // Very slow drifting
+            fadingOut: false,
+            balloons: groupBalloons
+          };
+          updatedGroups.push(newGroup);
+        }
+        
+        return updatedGroups;
+      });
+    };
+
+    const balloonInterval = setInterval(animateBalloons, 200); // Slower movement
+    return () => clearInterval(balloonInterval);
   }, [hour]);
 
   // Sky transition effect
@@ -556,6 +686,71 @@ export default function AnimatedMeadowScene({ children, hour = 12, wardrobeMode 
             opacity: ufo.fadingOut ? 0 : 0.8
           }}
         />
+      ))}
+      
+      {/* 4d. Planes with contrails (daytime) */}
+      {planes.map(plane => (
+        <div key={plane.id}>
+          {/* Render contrail segments */}
+          {plane.contrailSegments.map((segment, segmentIndex) => (
+            <div
+              key={`${plane.id}-contrail-${segmentIndex}`}
+              className="absolute"
+              style={{
+                backgroundImage: 'url(/scenes/air/contrail.png)',
+                backgroundSize: 'contain',
+                backgroundRepeat: 'no-repeat',
+                left: `${segment.x}px`,
+                top: `${segment.y}px`,
+                width: '32px',
+                height: '4px',
+                transform: 'translateZ(0)',
+                zIndex: 1, // Behind everything
+                opacity: Math.max(0, 1 - segment.age * 0.05) * (plane.fadingOut ? 0 : 1)
+              }}
+            />
+          ))}
+          {/* Render plane */}
+          <div
+            className="absolute transition-opacity duration-2000 ease-out"
+            style={{
+              backgroundImage: 'url(/scenes/air/plane.png)',
+              backgroundSize: 'contain',
+              backgroundRepeat: 'no-repeat',
+              left: `${plane.x}px`,
+              top: `${plane.y}px`,
+              width: '28px',
+              height: '10px',
+              transform: 'translateZ(0)',
+              zIndex: 2, // Same level as birds/UFOs
+              opacity: plane.fadingOut ? 0 : 0.8
+            }}
+          />
+        </div>
+      ))}
+      
+      {/* 4e. Hot air balloon groups (daytime) */}
+      {balloonGroups.map(group => (
+        <div key={group.id}>
+          {group.balloons.map((balloon, balloonIndex) => (
+            <div
+              key={`${group.id}-balloon-${balloonIndex}`}
+              className="absolute transition-opacity duration-2000 ease-out"
+              style={{
+                backgroundImage: `url(/scenes/air/balloon-${balloon.color}.png)`,
+                backgroundSize: 'contain',
+                backgroundRepeat: 'no-repeat',
+                left: `${group.x + balloon.offsetX}px`,
+                top: `${group.y + balloon.offsetY + Math.sin(balloon.bobPhase) * 3}px`, // Gentle bobbing
+                width: '16px',
+                height: '20px',
+                transform: 'translateZ(0)',
+                zIndex: 2, // Same level as birds
+                opacity: group.fadingOut ? 0 : 0.9
+              }}
+            />
+          ))}
+        </div>
       ))}
       
       {/* 5. Foreground scenery overlay - hides sun/moon when below horizon */}

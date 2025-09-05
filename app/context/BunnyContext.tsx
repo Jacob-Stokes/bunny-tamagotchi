@@ -5,6 +5,7 @@ import { BunnyState, BunnyStats, ActionType, StatModification } from '../types/b
 import { BunnyService, DatabaseBunny } from '../lib/bunnyService';
 import { CacheUtils } from '../lib/cacheUtils';
 import { useAuth } from './AuthContext';
+import { supabase } from '../lib/supabase';
 
 interface BunnyContextType {
   state: BunnyState;
@@ -218,7 +219,11 @@ export function BunnyProvider({ children }: { children: React.ReactNode }) {
 
   // Check if outfit exists and load it, but don't auto-generate
   useEffect(() => {
-    if (loading || !state.id || isGenerating) return;
+    console.log('🔍 checkExistingOutfit useEffect - loading:', loading, 'state.id:', state.id, 'isGenerating:', isGenerating);
+    if (loading || !state.id || isGenerating) {
+      console.log('🚫 checkExistingOutfit skipped - conditions not met');
+      return;
+    }
 
     const checkExistingOutfit = async () => {
       try {
@@ -256,7 +261,12 @@ export function BunnyProvider({ children }: { children: React.ReactNode }) {
         // First check if there's an active outfit from junction table
         console.log(`🔍 Checking for active outfit for bunny: ${state.id}`);
         try {
-          const { data: activeOutfitRecord, error: outfitError } = await InventoryService.serviceClient
+          if (!supabase) {
+            throw new Error('Supabase not configured');
+          }
+          
+          // Simplified query first - check if folder_number field exists
+          const { data: activeOutfitRecord, error: outfitError } = await supabase
             .from('bunny_outfits')
             .select(`
               outfit:outfits(name, image_urls)
@@ -266,24 +276,71 @@ export function BunnyProvider({ children }: { children: React.ReactNode }) {
             .limit(1)
             .single();
 
+          console.log('🔍 Active outfit query result:', { activeOutfitRecord, outfitError });
+
           if (!outfitError && activeOutfitRecord?.outfit) {
             const activeOutfit = activeOutfitRecord.outfit;
-            const activeOutfitUrl = activeOutfit.image_urls?.[0] || `/generated-bunnies/${activeOutfit.name}/${activeOutfit.name}-normal.png`;
+            
+            // For now, assume numbered outfits and build URL from name
+            let activeOutfitUrl;
+            if (/^\d{4}$/.test(activeOutfit.name)) {
+              // Name is 4-digit number like "0002" 
+              activeOutfitUrl = `/generated-bunnies/${activeOutfit.name}/${activeOutfit.name}-normal.png`;
+            } else {
+              // Fallback to existing logic
+              activeOutfitUrl = activeOutfit.image_urls?.[0] || `/generated-bunnies/${activeOutfit.name}/${activeOutfit.name}-normal.png`;
+            }
+            
             console.log(`🎯 Using active outfit: ${activeOutfit.name}, URL: ${activeOutfitUrl}`);
             setBunnyImageUrl(activeOutfitUrl);
             setImageLoading(false);
             return;
           } else {
-            console.log(`❌ No active outfit found, error:`, outfitError);
+            console.log(`❌ No active outfit found, error:`, outfitError?.message || 'Unknown error');
+            console.log(`❌ Full error object:`, outfitError);
           }
         } catch (junctionError) {
-          console.log('No active outfit found in junction table, proceeding with equipment logic');
+          console.log('❌ Junction table query failed:', junctionError);
         }
 
-        // TEMP FIX: Always use outfit 0001 instead of base bunny
-        console.log(`🎯 No active outfit found - forcing outfit 0001 instead of base bunny`);
-        const outfitImageUrl = `/generated-bunnies/0001/0001-normal.png`;
-        setBunnyImageUrl(outfitImageUrl);
+        // If no active outfit found, check if we have any outfits at all for this bunny
+        try {
+          if (!supabase) {
+            throw new Error('Supabase not configured');
+          }
+          
+          const { data: anyOutfitRecord, error: fallbackError } = await supabase
+            .from('bunny_outfits')
+            .select(`
+              outfit:outfits(name, image_urls)
+            `)
+            .eq('bunny_id', state.id)
+            .limit(1)
+            .single();
+
+          console.log('🔍 Fallback outfit query result:', { anyOutfitRecord, fallbackError });
+
+          if (!fallbackError && anyOutfitRecord?.outfit) {
+            const outfit = anyOutfitRecord.outfit;
+            let outfitUrl;
+            if (/^\d{4}$/.test(outfit.name)) {
+              outfitUrl = `/generated-bunnies/${outfit.name}/${outfit.name}-normal.png`;
+            } else {
+              outfitUrl = outfit.image_urls?.[0] || `/generated-bunnies/${outfit.name}/${outfit.name}-normal.png`;
+            }
+            console.log(`🎯 No active outfit, using any available: ${outfit.name}, URL: ${outfitUrl}`);
+            setBunnyImageUrl(outfitUrl);
+            setImageLoading(false);
+            return;
+          }
+        } catch (error) {
+          console.log('❌ Fallback outfit query failed:', error);
+        }
+
+        // Final fallback to outfit 0001
+        const defaultOutfitUrl = `/generated-bunnies/0001/0001-normal.png`;
+        console.log(`🐰 No outfits available, using default outfit 0001: ${defaultOutfitUrl}`);
+        setBunnyImageUrl(defaultOutfitUrl);
         setImageLoading(false);
         return;
 
