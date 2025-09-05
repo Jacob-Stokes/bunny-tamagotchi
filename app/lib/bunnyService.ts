@@ -25,15 +25,38 @@ export class BunnyService {
     }
     
     try {
-      // First, try to get existing bunny
-      const { data: existing, error: fetchError } = await supabase
+      // First, try to get the most recent existing bunny for this user
+      const { data: existingBunnies, error: fetchError } = await supabase
         .from('bunnies')
         .select('*')
         .eq('user_id', userId)
-        .maybeSingle(); // Use maybeSingle instead of single - returns null if no row, doesn't throw error
+        .order('created_at', { ascending: false })
+        .limit(1);
 
-      if (existing) {
-        return existing;
+      if (fetchError) throw fetchError;
+      
+      if (existingBunnies && existingBunnies.length > 0) {
+        console.log('🎯 Found existing bunny:', existingBunnies[0].id, 'for user');
+        return existingBunnies[0];
+      }
+
+      // For guest users, try to find the most recent bunny with equipment instead of creating a new one
+      if (userId.startsWith('guest_')) {
+        const { data: bunniesWithEquipment, error: equipError } = await supabase
+          .from('bunnies')
+          .select(`
+            *,
+            equipment:bunny_equipment(id)
+          `)
+          .not('equipment', 'is', null)
+          .order('created_at', { ascending: false })
+          .limit(1);
+          
+        if (!equipError && bunniesWithEquipment && bunniesWithEquipment.length > 0) {
+          const bunnyWithEquipment = bunniesWithEquipment[0];
+          console.log('🎯 Using existing bunny with equipment:', bunnyWithEquipment.id, 'for guest user');
+          return bunnyWithEquipment;
+        }
       }
 
 

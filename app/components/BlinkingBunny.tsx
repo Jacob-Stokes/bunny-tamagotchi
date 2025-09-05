@@ -594,17 +594,17 @@ export default function AnimatedBunny({ bunnyImageUrl, className, alt = "Bunny",
       case 'outfit_change':
         setIsChangingOutfit(true);
         
-        // Choose random direction (left or right)
-        const runLeft = Math.random() < 0.5;
+        // Always run left for consistent animation
+        const runLeft = true;
         
-        // Phase 1: Run off screen
-        setTranslateX(runLeft ? -400 : 400);
+        // Phase 1: Run off screen left
+        setTranslateX(-400);
         
         setTimeout(() => {
-          // Phase 2: Teleport to opposite side (off screen)
-          setTranslateX(runLeft ? 400 : -400);
+          // Phase 2: Stay off screen left (change outfit here)
+          setTranslateX(-400);
           
-          // Phase 3: Run back on screen with new outfit and smile
+          // Phase 3: Run back on screen from left with new outfit and smile
           setTimeout(() => {
             setTranslateX(0);
             if (hasSmileFrame) {

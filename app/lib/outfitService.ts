@@ -22,6 +22,7 @@ export interface Outfit {
     wave?: string;
   };
   is_active: boolean;
+  status: 'pending' | 'generating' | 'completed' | 'failed';
   created_at: string;
   updated_at: string;
 }
@@ -53,6 +54,7 @@ export interface CreateOutfitData {
     smile?: string;
     wave?: string;
   };
+  status?: 'pending' | 'generating' | 'completed' | 'failed';
 }
 
 export class OutfitService {
@@ -75,7 +77,8 @@ export class OutfitService {
           base_bunny: data.base_bunny,
           scene: data.scene,
           image_urls: data.image_urls,
-          is_active: false // Don't auto-activate, let user choose
+          is_active: false, // Don't auto-activate, let user choose
+          status: data.status || 'completed' // Default to completed for backward compatibility
         })
         .select()
         .single();
@@ -167,6 +170,29 @@ export class OutfitService {
       if (error) throw error;
     } catch (error) {
       console.error('Error deleting outfit:', error);
+      throw error;
+    }
+  }
+
+  static async updateOutfitStatus(outfitId: string, status: 'pending' | 'generating' | 'completed' | 'failed', imageUrls?: any): Promise<void> {
+    if (!supabase) {
+      throw new Error('Supabase client not initialized');
+    }
+
+    try {
+      const updateData: any = { status };
+      if (imageUrls) {
+        updateData.image_urls = imageUrls;
+      }
+
+      const { error } = await supabase
+        .from('outfits')
+        .update(updateData)
+        .eq('id', outfitId);
+
+      if (error) throw error;
+    } catch (error) {
+      console.error('Error updating outfit status:', error);
       throw error;
     }
   }

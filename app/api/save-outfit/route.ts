@@ -145,7 +145,7 @@ export async function POST(request: NextRequest) {
       wave: `${baseImagePath}/wave.png`
     };
 
-    // Save outfit to database (DON'T apply it to bunny yet - user decides later)
+    // Save outfit to database with proper user association
     const outfit = await OutfitService.createOutfit({
       bunny_id: bunny_id,
       name: outfit_name,
@@ -153,7 +153,7 @@ export async function POST(request: NextRequest) {
       base_bunny: selectedBaseBunny,
       scene: selectedScene,
       image_urls: imageUrls
-    });
+    }, userId);
 
     // DON'T apply outfit yet - user will apply it when they accept the notification
 

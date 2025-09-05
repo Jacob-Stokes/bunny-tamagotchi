@@ -57,21 +57,31 @@ export default function Home() {
     }
   }, [state, personality]);
 
-  // Load inventory when bunny state changes or image changes (after outfit generation)
+  // Load inventory and active outfit when bunny state changes or image changes (after outfit generation)
   useEffect(() => {
-    const loadInventory = async () => {
+    const loadInventoryAndActiveOutfit = async () => {
       if (state?.id) {
         try {
           const inventory = await InventoryService.getBunnyFullInventory(state.id);
           setBunnyInventory(inventory);
+          
+          // Also load and apply the active outfit image (if any) 
+          // NOTE: Don't manipulate equipment here as it breaks the UI
+          const { OutfitService } = await import('./lib/outfitService');
+          const activeOutfit = await OutfitService.getActiveOutfit(state.id);
+          
+          if (activeOutfit && activeOutfit.image_urls?.normal) {
+            console.log('🖼️ Loading active outfit image:', activeOutfit.name);
+            setBunnyImageUrl(activeOutfit.image_urls.normal);
+          }
         } catch (error) {
-          console.error('Failed to load inventory:', error);
+          console.error('Failed to load inventory or active outfit:', error);
         }
       }
     };
     
-    loadInventory();
-  }, [state?.id, bunnyImageUrl]);
+    loadInventoryAndActiveOutfit();
+  }, [state?.id]); // Remove bunnyImageUrl dependency to prevent loops
 
 
   const handleTriggerAnimation = (animationType: string) => {
@@ -158,62 +168,57 @@ export default function Home() {
                 <TimeOfDayManager autoAdvance={true} intervalMinutes={0.05}>
                   {(hour, setHour) => (
                     <AnimatedMeadowScene hour={hour} wardrobeMode={activeTab === 'wardrobe'}>
-                      {/* Flexible content based on active tab */}
-                      {activeTab === 'wardrobe' ? (
-                        /* Wardrobe Items Mode: Split layout - Bunny left, Items right */
-                        <div className="flex w-full h-full">
-                          {/* White overlay behind bunny and outfit items for better visibility */}
-                          <div 
-                            className={`absolute inset-0 bg-white/85 rounded-2xl transition-all duration-500 ease-out ${
-                              activeTab === 'wardrobe' 
-                                ? 'transform translate-y-0 opacity-100' 
-                                : 'transform -translate-y-full opacity-0'
-                            }`}
-                          ></div>
-                          
-                          {/* Left: Bunny (takes 45% of space) */}
-                          <div 
-                            style={{width: '45%'}} 
-                            className={`relative flex items-center justify-start pl-4 z-10 transition-all duration-500 ease-out ${
+                      {/* Single layout with transitions */}
+                      <div className="relative w-full h-full">
+                        {/* White overlay slides in from top */}
+                        <div 
+                          className={`absolute inset-0 bg-white/85 rounded-2xl transition-all duration-500 ease-out ${
+                            activeTab === 'wardrobe' 
+                              ? 'transform translate-y-0 opacity-100' 
+                              : 'transform -translate-y-full opacity-0'
+                          }`}
+                        ></div>
+                        
+                        {/* Bunny - transitions between center and left position */}
+                        <div className={`absolute inset-0 flex items-center transition-all duration-500 ease-out z-10 ${
+                          activeTab === 'wardrobe'
+                            ? 'justify-start pl-4 w-[45%]' // Left side in wardrobe
+                            : 'justify-center w-full' // Center in normal mode
+                        }`}>
+                          {imageLoading ? (
+                            <div className="text-center text-white">
+                              <div className={`mb-2 animate-bounce ${
+                                activeTab === 'wardrobe' ? 'text-3xl' : 'text-4xl'
+                              }`}>🐰</div>
+                              <p className={`font-medium ${
+                                activeTab === 'wardrobe' ? 'text-xs' : 'text-sm'
+                              }`}>Loading{activeTab === 'wardrobe' ? '...' : ' bunny...'}</p>
+                            </div>
+                          ) : (
+                            <div className={`transition-all duration-500 ease-out ${
                               activeTab === 'wardrobe'
-                                ? 'transform translate-x-0 opacity-100'
-                                : 'transform -translate-x-8 opacity-0'
-                            }`}
-                          >
-                            {imageLoading ? (
-                              <div className="text-center text-white">
-                                <div className="text-3xl mb-2 animate-bounce">🐰</div>
-                                <p className="text-xs font-medium">Loading...</p>
-                              </div>
-                            ) : (
-                              <div 
-                                style={{ transform: 'scale(1.5)', transformOrigin: 'center' }}
-                                className={`transition-all duration-500 ease-out ${
-                                  activeTab === 'wardrobe'
-                                    ? 'transform translate-x-0'
-                                    : 'transform translate-x-4'
-                                }`}
-                              >
-                                <AnimatedBunny 
-                                  bunnyImageUrl={bunnyImageUrl}
-                                  alt="Bunny" 
-                                  className="w-full h-full object-contain"
-                                  debugTrigger={debugTrigger}
-                                  debugMode={true} // Always static in wardrobe
-                                />
-                              </div>
-                            )}
-                          </div>
-                          
-                          {/* Right: Selected Items Panel (takes 55% of space) */}
-                          <div 
-                            style={{width: '55%'}} 
-                            className={`relative p-2 transition-all duration-500 ease-out delay-150 ${
-                              activeTab === 'wardrobe'
-                                ? 'transform translate-x-0 opacity-100'
-                                : 'transform translate-x-8 opacity-0'
-                            }`}
-                          >
+                                ? 'scale-150' // Scaled up for wardrobe
+                                : 'scale-100 w-[95%] h-[95%]' // Normal size
+                            }`}>
+                              <AnimatedBunny 
+                                bunnyImageUrl={bunnyImageUrl}
+                                alt="Bunny" 
+                                className="w-full h-full object-contain"
+                                debugTrigger={debugTrigger}
+                                debugMode={activeTab === 'wardrobe'}
+                              />
+                            </div>
+                          )}
+                        </div>
+                        
+                        {/* Outfit Items Panel - slides in from right */}
+                        <div 
+                          className={`absolute right-0 top-0 w-[55%] h-full p-2 transition-all duration-500 ease-out delay-150 z-20 ${
+                            activeTab === 'wardrobe'
+                              ? 'transform translate-x-0 opacity-100 pointer-events-auto'
+                              : 'transform translate-x-full opacity-0 pointer-events-none'
+                          }`}
+                        >
                             <div 
                               className="bg-white/90 backdrop-blur-sm border border-white/30 rounded-xl p-3 h-full overflow-y-auto"
                               style={{ minHeight: '180px', maxHeight: '280px' }}
@@ -372,36 +377,15 @@ export default function Home() {
                             </div>
                           </div>
                         </div>
-                      ) : (
-                        /* Normal Mode: Centered bunny */
-                        <div 
-                          className={`w-full h-full flex items-center justify-center transition-all duration-500 ease-out ${
-                            activeTab !== 'wardrobe'
-                              ? 'transform translate-x-0 scale-100 opacity-100'
-                              : 'transform translate-x-2 scale-95 opacity-0'
-                          }`}
-                        >
-                          {imageLoading ? (
-                            <div className="text-center text-white">
-                              <div className="text-4xl mb-2 animate-bounce">🐰</div>
-                              <p className="text-sm font-medium">Loading bunny...</p>
-                            </div>
-                          ) : (
-                            <AnimatedBunny 
-                              bunnyImageUrl={bunnyImageUrl}
-                              alt="Bunny" 
-                              className="w-[95%] h-[95%] object-contain mx-auto"
-                              debugTrigger={debugTrigger}
-                              debugMode={debugMode}
-                            />
-                          )}
-                        </div>
-                      )}
                   
-                      {/* Stats overlay - only show when NOT in wardrobe items mode */}
-                      {mounted && activeTab !== 'wardrobe' && (
+                      {/* Stats overlay - with dissolve transitions */}
+                      {mounted && (
                         <>
-                          <div className="absolute bottom-3 left-3 flex flex-col gap-1">
+                          <div className={`absolute bottom-3 left-3 flex flex-col gap-1 transition-all duration-500 ease-out ${
+                            activeTab !== 'wardrobe' 
+                              ? 'opacity-100 scale-100' 
+                              : 'opacity-0 scale-95 pointer-events-none'
+                          }`}>
                             <div className="pixel-font text-xxs text-white bg-black/50 rounded px-1 py-0.5">
                               {getStatEmoji('stimulation')} {getStatPercentage('stimulation')}
                             </div>
@@ -409,7 +393,11 @@ export default function Home() {
                               {getStatEmoji('connection')} {getStatPercentage('connection')}
                             </div>
                           </div>
-                          <div className="absolute bottom-3 right-3 flex flex-col gap-1">
+                          <div className={`absolute bottom-3 right-3 flex flex-col gap-1 transition-all duration-500 ease-out ${
+                            activeTab !== 'wardrobe' 
+                              ? 'opacity-100 scale-100' 
+                              : 'opacity-0 scale-95 pointer-events-none'
+                          }`}>
                             <div className="pixel-font text-xxs text-white bg-black/50 rounded px-1 py-0.5">
                               {getStatEmoji('comfort')} {getStatPercentage('comfort')}
                             </div>

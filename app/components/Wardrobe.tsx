@@ -212,9 +212,11 @@ export default function Wardrobe({ className = '', bunnyImageUrl, onSelectedItem
   };
 
   const loadGeneratedOutfits = async () => {
+    if (!bunnyState.id) return;
+    
     setLoadingOutfits(true);
     try {
-      const response = await fetch('/api/generated-outfits');
+      const response = await fetch(`/api/generated-outfits?bunny_id=${bunnyState.id}`);
       const data = await response.json();
       
       if (data.outfits) {
@@ -229,14 +231,22 @@ export default function Wardrobe({ className = '', bunnyImageUrl, onSelectedItem
   };
 
   const switchToOutfit = async (outfit: any) => {
-    if (!bunnyState.id) return;
+    console.log('👗 switchToOutfit called with outfit:', outfit.name || 'Unknown', 'outfitId:', outfit.outfitId);
+    console.log('👗 DEBUG - Full outfit object:', outfit);
+    
+    if (!bunnyState.id) {
+      console.log('❌ No bunny ID available');
+      return;
+    }
     
     // Trigger bunny zoom out animation immediately
     window.dispatchEvent(new CustomEvent('outfit-generation-start'));
     
     try {
       setLoading(true);
-      const items = outfit.metadata?.equippedItems || [];
+      // Get items from the correct field - outfits store them in .metadata.equippedItems from the API transform
+      const items = outfit.metadata?.equippedItems || outfit.equippedItems || [];
+      console.log('👗 DEBUG - Items to apply:', items);
       
       // Clear any wardrobe selections since we're switching to a pre-made outfit
       setSelectedItemsForOutfit({});
@@ -246,6 +256,25 @@ export default function Wardrobe({ className = '', bunnyImageUrl, onSelectedItem
       
       // Apply items to bunny equipment FIRST
       await applyItemsToBunny(items);
+      
+      // Reload inventory to update UI immediately
+      try {
+        const { InventoryService } = await import('../lib/inventoryService');
+        const newInventory = await InventoryService.getBunnyFullInventory(bunnyState.id);
+        setBunnyInventory(newInventory);
+        console.log('🔄 Inventory reloaded after outfit switch');
+      } catch (error) {
+        console.error('Failed to reload inventory:', error);
+      }
+      
+      // Save this as the active outfit if it has an ID
+      if (outfit.outfitId) {
+        console.log('Setting active outfit:', outfit.outfitId, 'for bunny:', bunnyState.id);
+        await OutfitService.setActiveOutfit(outfit.outfitId, bunnyState.id);
+        console.log('Active outfit set successfully');
+      } else {
+        console.log('Outfit has no outfitId, cannot persist:', outfit);
+      }
       
       // THEN set the image URL after equipment is complete (ensure bunny is still off-screen)
       setTimeout(() => {
@@ -572,9 +601,13 @@ export default function Wardrobe({ className = '', bunnyImageUrl, onSelectedItem
     
     // Try different possible locations for equipped items data
     const outfitItems = outfit.metadata?.equippedItems || outfit.equippedItems;
-    if (!outfitItems) return false;
     
     const currentEquippedIds = Object.values(bunnyInventory.equipment).map(eq => eq.item_id).sort();
+    
+    // Special case: Base Bunny outfit (no equipped items)
+    if (!outfitItems || outfitItems.length === 0) {
+      return currentEquippedIds.length === 0;
+    }
     
     // Handle different data formats
     let outfitItemIds;
@@ -593,7 +626,6 @@ export default function Wardrobe({ className = '', bunnyImageUrl, onSelectedItem
     } else {
       return false;
     }
-    
     
     // Compare arrays - outfit is worn if all items match exactly
     return currentEquippedIds.length === outfitItemIds.length && 
@@ -636,6 +668,184 @@ export default function Wardrobe({ className = '', bunnyImageUrl, onSelectedItem
       </div>
     );
   }
+
+  // Favorites section component
+  const FavouritesSection = () => {
+    if (loadingOutfits) {
+      return (
+        <div className="text-center py-8">
+          <div className="text-4xl mb-3 animate-bounce">❤️</div>
+          <p className="text-purple-600 text-sm">Loading favourites...</p>
+        </div>
+      );
+    }
+
+    const favouriteOutfitsList = generatedOutfits.filter(outfit => isFavourite(outfit.key));
+    
+    if (favouriteOutfitsList.length === 0) {
+      return (
+        <div className="text-center py-8">
+          <div className="text-4xl mb-3">💝</div>
+          <p className="text-purple-600 text-sm">
+            No favourite outfits yet
+          </p>
+          <p className="text-xs text-purple-500 mt-2">
+            Tap the heart button on outfits in the Outfits tab to add them here!
+          </p>
+        </div>
+      );
+    }
+    
+    const currentOutfit = favouriteOutfitsList[currentFavouriteIndex];
+    const isCurrentlyWorn = isOutfitCurrentlyWorn(currentOutfit);
+    
+    return (
+      <div className="relative">
+        <h3 className="text-lg font-semibold text-purple-700 mb-4 text-center">
+          💖 Favourite Outfits
+        </h3>
+        
+        {/* Carousel Container */}
+        <div 
+          className="relative bg-white/20 rounded-2xl p-6"
+          onTouchStart={onTouchStart}
+          onTouchMove={onTouchMove}
+          onTouchEnd={onTouchEnd}
+        >
+          {/* Current outfit display */}
+          <div className="flex flex-col items-center">
+            <div 
+              className={`aspect-square w-48 rounded-xl border-2 transition-all duration-200 overflow-hidden bg-white shadow-lg mb-4 ${
+                isCurrentlyWorn 
+                  ? 'border-green-400 cursor-default' 
+                  : 'border-purple-200 hover:border-purple-400 cursor-pointer hover:shadow-xl'
+              }`}
+              onClick={isCurrentlyWorn ? undefined : () => switchToOutfit(currentOutfit)}
+            >
+              <img 
+                src={currentOutfit.normalUrl}
+                alt={`Outfit with ${currentOutfit.equippedItems.join(', ')}`}
+                className="w-full h-full object-cover"
+                onError={(e) => {
+                  e.currentTarget.src = '/base-bunnies/bunny-base.png';
+                }}
+              />
+              
+              {/* Currently worn indicator */}
+              {isCurrentlyWorn && (
+                <div className="absolute top-2 left-2 bg-green-600 text-white px-2 py-1 rounded text-xs font-medium">
+                  ✓ Currently Worn
+                </div>
+              )}
+            </div>
+            
+            {/* Outfit name and details */}
+            <div className="text-center mb-4">
+              <h4 className="text-purple-800 font-semibold text-lg mb-1">
+                {currentOutfit.equippedItems.length > 0 
+                  ? currentOutfit.equippedItems.join(' + ')
+                  : 'Base Bunny'
+                }
+              </h4>
+              <p className="text-purple-600 text-sm">
+                {currentOutfit.equippedItems.length} item{currentOutfit.equippedItems.length !== 1 ? 's' : ''}
+                {currentOutfit.hasBlinkFrame && ' • Animated'}
+              </p>
+            </div>
+            
+            {/* Action buttons */}
+            <div className="flex gap-3 mb-4">
+              {isCurrentlyWorn ? (
+                <div className="bg-green-600 text-white px-6 py-2.5 rounded-xl font-medium">
+                  ✓ Currently Worn
+                </div>
+              ) : (
+                <button
+                  onClick={() => switchToOutfit(currentOutfit)}
+                  className="bg-purple-600 text-white px-6 py-2.5 rounded-xl font-medium hover:bg-purple-700 transition-colors shadow-md"
+                >
+                  👗 Wear This Outfit
+                </button>
+              )}
+              
+              <button
+                onClick={() => toggleFavourite(currentOutfit.key)}
+                className="bg-red-100 text-red-600 px-4 py-2.5 rounded-xl font-medium hover:bg-red-200 transition-colors"
+              >
+                💔 Remove
+              </button>
+              
+              {/* DEBUG button for favorites */}
+              <button
+                onClick={() => regenerateOutfitImages(currentOutfit)}
+                className="bg-orange-100 text-orange-600 px-4 py-2.5 rounded-xl font-medium hover:bg-orange-200 transition-colors"
+                title="DEBUG: Regenerate outfit images"
+              >
+                🔧 Debug
+              </button>
+            </div>
+          </div>
+          
+          {/* Navigation arrows */}
+          {favouriteOutfitsList.length > 1 && (
+            <>
+              <button
+                onClick={() => {
+                  setCurrentFavouriteIndex(prev => 
+                    prev === 0 ? favouriteOutfitsList.length - 1 : prev - 1
+                  );
+                }}
+                className="absolute left-2 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white p-2 rounded-full shadow-md transition-all"
+              >
+                <span className="text-purple-600 text-lg">‹</span>
+              </button>
+              
+              <button
+                onClick={() => {
+                  setCurrentFavouriteIndex(prev => 
+                    prev === favouriteOutfitsList.length - 1 ? 0 : prev + 1
+                  );
+                }}
+                className="absolute right-2 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white p-2 rounded-full shadow-md transition-all"
+              >
+                <span className="text-purple-600 text-lg">›</span>
+              </button>
+            </>
+          )}
+        </div>
+        
+        {/* Pagination dots */}
+        {favouriteOutfitsList.length > 1 && (
+          <div className="flex justify-center mt-4 gap-2">
+            {favouriteOutfitsList.map((_, index) => (
+              <button
+                key={index}
+                onClick={() => setCurrentFavouriteIndex(index)}
+                className={`w-2 h-2 rounded-full transition-colors ${
+                  index === currentFavouriteIndex 
+                    ? 'bg-purple-600' 
+                    : 'bg-purple-300 hover:bg-purple-400'
+                }`}
+              />
+            ))}
+          </div>
+        )}
+        
+        {/* Counter */}
+        <div className="text-center mt-4">
+          <p className="text-purple-600 text-sm font-medium">
+            {currentFavouriteIndex + 1} of {favouriteOutfitsList.length}
+          </p>
+        </div>
+        
+        {/* Help text */}
+        <div className="mt-4 text-xs text-gray-600 text-center">
+          <p>• Swipe or use arrows to browse your favourite outfits</p>
+          <p>• Your favourites are synced to your account</p>
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div className={`space-y-4 ${className}`}>
@@ -852,8 +1062,12 @@ export default function Wardrobe({ className = '', bunnyImageUrl, onSelectedItem
                       return (
                     <div key={outfit.key} className="relative group">
                       <div 
-                        className="aspect-square rounded-xl border-2 border-gray-200 hover:border-purple-400 transition-all duration-200 cursor-pointer overflow-hidden bg-white shadow-sm hover:shadow-md"
-                        onClick={() => switchToOutfit(outfit)}
+                        className={`aspect-square rounded-xl border-2 transition-all duration-200 overflow-hidden bg-white shadow-sm ${
+                          isCurrentlyWorn 
+                            ? 'border-green-400 cursor-default' 
+                            : 'border-gray-200 hover:border-purple-400 cursor-pointer hover:shadow-md'
+                        }`}
+                        onClick={isCurrentlyWorn ? undefined : () => switchToOutfit(outfit)}
                       >
                         <img 
                           src={outfit.normalUrl}
@@ -864,16 +1078,22 @@ export default function Wardrobe({ className = '', bunnyImageUrl, onSelectedItem
                           }}
                         />
                         
-                        {/* Wear button - top left */}
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            switchToOutfit(outfit);
-                          }}
-                          className="absolute top-2 left-2 z-10 bg-purple-600 text-white px-2 py-1 rounded-lg text-xs font-medium hover:bg-purple-700 shadow-md"
-                        >
-                          Wear
-                        </button>
+                        {/* Wear button or worn indicator - top left */}
+                        {isCurrentlyWorn ? (
+                          <div className="absolute top-2 left-2 z-10 bg-green-600 text-white px-2 py-1 rounded-lg text-xs font-medium">
+                            ✓ Worn
+                          </div>
+                        ) : (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              switchToOutfit(outfit);
+                            }}
+                            className="absolute top-2 left-2 z-10 bg-purple-600 text-white px-2 py-1 rounded-lg text-xs font-medium hover:bg-purple-700 shadow-md"
+                          >
+                            Wear
+                          </button>
+                        )}
 
                         {/* Favourite heart button - top right */}
                         <button
@@ -927,157 +1147,7 @@ export default function Wardrobe({ className = '', bunnyImageUrl, onSelectedItem
         )}
 
       {/* Favourites Mode Content */}
-      {showMode === 'favourites' && (
-        <div>
-          {loadingOutfits ? (
-            <div className="text-center py-8">
-              <div className="text-4xl mb-3 animate-bounce">❤️</div>
-              <p className="text-purple-600 text-sm">Loading favourites...</p>
-            </div>
-          ) : (() => {
-            const favouriteOutfitsList = generatedOutfits.filter(outfit => isFavourite(outfit.key));
-            return favouriteOutfitsList.length === 0 ? (
-              <div className="text-center py-8">
-                <div className="text-4xl mb-3">💝</div>
-                <p className="text-purple-600 text-sm">
-                  No favourite outfits yet
-                </p>
-                <p className="text-xs text-purple-500 mt-2">
-                  Tap the heart button on outfits in the Outfits tab to add them here!
-                </p>
-              </div>
-            ) : (
-              <div className="relative">
-                <h3 className="text-lg font-semibold text-purple-700 mb-4 text-center">
-                  💖 Favourite Outfits
-                </h3>
-                
-                {/* Carousel Container */}
-                <div 
-                  className="relative bg-white/20 rounded-2xl p-6"
-                  onTouchStart={onTouchStart}
-                  onTouchMove={onTouchMove}
-                  onTouchEnd={onTouchEnd}
-                >
-                  {/* Current outfit display */}
-                  <div className="flex flex-col items-center">
-                    <div 
-                      className="aspect-square w-48 rounded-xl border-2 border-purple-200 hover:border-purple-400 transition-all duration-200 cursor-pointer overflow-hidden bg-white shadow-lg hover:shadow-xl mb-4"
-                      onClick={() => switchToOutfit(favouriteOutfitsList[currentFavouriteIndex])}
-                    >
-                      <img 
-                        src={favouriteOutfitsList[currentFavouriteIndex].normalUrl}
-                        alt={`Outfit with ${favouriteOutfitsList[currentFavouriteIndex].equippedItems.join(', ')}`}
-                        className="w-full h-full object-cover"
-                        onError={(e) => {
-                          e.currentTarget.src = '/base-bunnies/bunny-base.png';
-                        }}
-                      />
-                    </div>
-                    
-                    {/* Outfit name and details */}
-                    <div className="text-center mb-4">
-                      <h4 className="text-purple-800 font-semibold text-lg mb-1">
-                        {favouriteOutfitsList[currentFavouriteIndex].equippedItems.length > 0 
-                          ? favouriteOutfitsList[currentFavouriteIndex].equippedItems.join(' + ')
-                          : 'Base Bunny'
-                        }
-                      </h4>
-                      <p className="text-purple-600 text-sm">
-                        {favouriteOutfitsList[currentFavouriteIndex].equippedItems.length} item{favouriteOutfitsList[currentFavouriteIndex].equippedItems.length !== 1 ? 's' : ''}
-                        {favouriteOutfitsList[currentFavouriteIndex].hasBlinkFrame && ' • Animated'}
-                      </p>
-                    </div>
-                    
-                    {/* Action buttons */}
-                    <div className="flex gap-3 mb-4">
-                      <button
-                        onClick={() => switchToOutfit(favouriteOutfitsList[currentFavouriteIndex])}
-                        className="bg-purple-600 text-white px-6 py-2.5 rounded-xl font-medium hover:bg-purple-700 transition-colors shadow-md"
-                      >
-                        👗 Wear This Outfit
-                      </button>
-                      
-                      <button
-                        onClick={() => toggleFavourite(favouriteOutfitsList[currentFavouriteIndex].key)}
-                        className="bg-red-100 text-red-600 px-4 py-2.5 rounded-xl font-medium hover:bg-red-200 transition-colors"
-                      >
-                        💔 Remove
-                      </button>
-                      
-                      {/* DEBUG button for favorites */}
-                      <button
-                        onClick={() => regenerateOutfitImages(favouriteOutfitsList[currentFavouriteIndex])}
-                        className="bg-orange-100 text-orange-600 px-4 py-2.5 rounded-xl font-medium hover:bg-orange-200 transition-colors"
-                        title="DEBUG: Regenerate outfit images"
-                      >
-                        🔧 Debug
-                      </button>
-                    </div>
-                  </div>
-                  
-                  {/* Navigation arrows */}
-                  {favouriteOutfitsList.length > 1 && (
-                    <>
-                      <button
-                        onClick={() => {
-                          setCurrentFavouriteIndex(prev => 
-                            prev === 0 ? favouriteOutfitsList.length - 1 : prev - 1
-                          );
-                        }}
-                        className="absolute left-2 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white p-2 rounded-full shadow-md transition-all"
-                      >
-                        <span className="text-purple-600 text-lg">‹</span>
-                      </button>
-                      
-                      <button
-                        onClick={() => {
-                          setCurrentFavouriteIndex(prev => 
-                            prev === favouriteOutfitsList.length - 1 ? 0 : prev + 1
-                          );
-                        }}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white p-2 rounded-full shadow-md transition-all"
-                      >
-                        <span className="text-purple-600 text-lg">›</span>
-                      </button>
-                    </>
-                  )}
-                </div>
-                
-                {/* Pagination dots */}
-                {favouriteOutfitsList.length > 1 && (
-                  <div className="flex justify-center mt-4 gap-2">
-                    {favouriteOutfitsList.map((_, index) => (
-                      <button
-                        key={index}
-                        onClick={() => setCurrentFavouriteIndex(index)}
-                        className={`w-2 h-2 rounded-full transition-colors ${
-                          index === currentFavouriteIndex 
-                            ? 'bg-purple-600' 
-                            : 'bg-purple-300 hover:bg-purple-400'
-                        }`}
-                      />
-                    ))}
-                  </div>
-                )}
-                
-                {/* Counter */}
-                <div className="text-center mt-4">
-                  <p className="text-purple-600 text-sm font-medium">
-                    {currentFavouriteIndex + 1} of {favouriteOutfitsList.length}
-                  </p>
-                </div>
-                
-                {/* Help text */}
-                <div className="mt-4 text-xs text-gray-600 text-center">
-                  <p>• Swipe or use arrows to browse your favourite outfits</p>
-                  <p>• Your favourites are synced to your account</p>
-                </div>
-              </div>
-            );
-          })()}
-        </div>
-      )}
+      {showMode === 'favourites' && <FavouritesSection />}
 
       {/* Shop Mode Content */}
       {showMode === 'shop' && (

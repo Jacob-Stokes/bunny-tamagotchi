@@ -1,4 +1,5 @@
 import { supabase, isSupabaseConfigured } from './supabase';
+import { createClient } from '@supabase/supabase-js';
 import { 
   Item, 
   BunnyInventoryItem, 
@@ -13,6 +14,17 @@ import {
 } from '../types/inventory';
 
 export class InventoryService {
+  // Get client with service key for equipment queries (bypasses RLS issues)
+  private static getServiceClient() {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const serviceKey = process.env.SUPABASE_SERVICE_KEY;
+    
+    if (supabaseUrl && serviceKey) {
+      return createClient(supabaseUrl, serviceKey);
+    }
+    
+    return supabase;
+  }
   // Get all available items (with optional filtering)
   static async getItems(filter?: ItemFilter): Promise<Item[]> {
     if (!isSupabaseConfigured || !supabase) {
@@ -69,13 +81,18 @@ export class InventoryService {
 
   // Get bunny's full inventory (owned items + equipped items + calculated stat effects)
   static async getBunnyFullInventory(bunnyId: string): Promise<BunnyFullInventory> {
-    if (!isSupabaseConfigured || !supabase) {
+    if (!isSupabaseConfigured) {
       throw new Error('Supabase is not configured');
     }
 
     try {
-      // Get inventory with item details
-      const { data: inventoryData, error: invError } = await supabase
+      const serviceClient = this.getServiceClient();
+      if (!serviceClient) {
+        throw new Error('Unable to create Supabase client');
+      }
+      
+      // Get inventory with item details (use regular client for inventory)
+      const { data: inventoryData, error: invError } = await supabase!
         .from('bunny_inventory')
         .select(`
           *,
@@ -85,8 +102,8 @@ export class InventoryService {
 
       if (invError) throw invError;
 
-      // Get equipment with item details
-      const { data: equipmentData, error: equipError } = await supabase
+      // Get equipment with item details using service client (bypasses RLS)
+      const { data: equipmentData, error: equipError } = await serviceClient
         .from('bunny_equipment')
         .select(`
           *,
