@@ -8,15 +8,18 @@ interface AnimatedBunnyProps {
   alt?: string;
   debugTrigger?: string | null;
   debugMode?: boolean;
+  isSad?: boolean;
 }
 
-export default function AnimatedBunny({ bunnyImageUrl, className, alt = "Bunny", debugTrigger, debugMode = false }: AnimatedBunnyProps) {
+export default function AnimatedBunny({ bunnyImageUrl, className, alt = "Bunny", debugTrigger, debugMode = false, isSad = false }: AnimatedBunnyProps) {
   const [isBlinking, setIsBlinking] = useState(false);
   const [isSmiling, setIsSmiling] = useState(false);
   const [isWaving, setIsWaving] = useState(false);
   const [hasBlinkFrame, setHasBlinkFrame] = useState(false);
   const [hasSmileFrame, setHasSmileFrame] = useState(false);
   const [hasWaveFrame, setHasWaveFrame] = useState(false);
+  const [hasSadFrames, setHasSadFrames] = useState(false);
+  const [sadEyesOpen, setSadEyesOpen] = useState(true);
   const [rotation, setRotation] = useState(0);
   const [translateX, setTranslateX] = useState(0);
   const [translateY, setTranslateY] = useState(0);
@@ -26,17 +29,59 @@ export default function AnimatedBunny({ bunnyImageUrl, className, alt = "Bunny",
 
   // Check if animation frames exist
   useEffect(() => {
-    if (!bunnyImageUrl || !bunnyImageUrl.includes('/generated-bunnies/')) {
+    console.log('🎭 BlinkingBunny checking frames for URL:', bunnyImageUrl);
+    
+    if (!bunnyImageUrl) {
+      console.log('🚫 No bunny URL, skipping animation checks');
       setHasBlinkFrame(false);
       setHasSmileFrame(false);
       setHasWaveFrame(false);
+      setHasSadFrames(false);
+      return;
+    }
+
+    // Check if this is a base bunny (no animations except for base-bunnies/bunny-base/ subfolder)
+    if (bunnyImageUrl.includes('/base-bunnies/') && !bunnyImageUrl.includes('/bunny-base/')) {
+      console.log('🚫 Base bunny URL (no animations), skipping animation checks');
+      setHasBlinkFrame(false);
+      setHasSmileFrame(false);
+      setHasWaveFrame(false);
+      setHasSadFrames(false);
       return;
     }
 
     const checkAnimationFrames = async () => {
-      // Check blink frame
-      const blinkUrl = bunnyImageUrl.replace('/normal.png', '/blink.png');
+      // Determine naming pattern - numbered folders use XXXX-frame.png, others use frame.png
+      const isNumberedFolder = /\/\d{4}\//.test(bunnyImageUrl);
+      console.log('📁 Is numbered folder?', isNumberedFolder, 'for URL:', bunnyImageUrl);
       
+      let blinkUrl, smileUrl, waveUrl, sadClosedUrl, sadOpenUrl;
+      
+      if (isNumberedFolder) {
+        // New numbered format: /generated-bunnies/0001/0001-normal.png or /generated-bunnies/0001/0001-normal.png?v=123
+        const folderMatch = bunnyImageUrl.match(/\/(\d{4})\/\d{4}-normal\.png(\?.*)?$/);
+        if (folderMatch) {
+          const outfitNumber = folderMatch[1];
+          const queryParams = folderMatch[2] || ''; // Preserve query parameters
+          const basePath = bunnyImageUrl.replace(`/${outfitNumber}-normal.png${queryParams}`, '');
+          blinkUrl = `${basePath}/${outfitNumber}-blink.png${queryParams}`;
+          smileUrl = `${basePath}/${outfitNumber}-smile.png${queryParams}`;
+          waveUrl = `${basePath}/${outfitNumber}-wave.png${queryParams}`;
+          sadClosedUrl = `${basePath}/${outfitNumber}-sad-closed-eyes.png${queryParams}`;
+          sadOpenUrl = `${basePath}/${outfitNumber}-sad-open-eyes.png${queryParams}`;
+        }
+      } else {
+        // Old cache-key format: /generated-bunnies/base-bunny-clean/normal.png -> blink.png
+        blinkUrl = bunnyImageUrl.replace('/normal.png', '/blink.png');
+        smileUrl = bunnyImageUrl.replace('/normal.png', '/smile.png');
+        waveUrl = bunnyImageUrl.replace('/normal.png', '/wave.png');
+        sadClosedUrl = bunnyImageUrl.replace('/normal.png', '/sad-closed-eyes.png');
+        sadOpenUrl = bunnyImageUrl.replace('/normal.png', '/sad-open-eyes.png');
+      }
+      
+      console.log('🔍 Animation URLs to check:', { blinkUrl, smileUrl, waveUrl, sadClosedUrl, sadOpenUrl });
+      
+      // Check blink frame
       try {
         const img = new Image();
         await new Promise((resolve, reject) => {
@@ -54,7 +99,6 @@ export default function AnimatedBunny({ bunnyImageUrl, className, alt = "Bunny",
       }
       
       // Check smile frame
-      const smileUrl = bunnyImageUrl.replace('/normal.png', '/smile.png');
       
       try {
         const img = new Image();
@@ -73,7 +117,6 @@ export default function AnimatedBunny({ bunnyImageUrl, className, alt = "Bunny",
       }
       
       // Check wave frame
-      const waveUrl = bunnyImageUrl.replace('/normal.png', '/wave.png');
       
       try {
         const img = new Image();
@@ -90,13 +133,56 @@ export default function AnimatedBunny({ bunnyImageUrl, className, alt = "Bunny",
       } catch {
         setHasWaveFrame(false);
       }
+      
+      // Check sad frames (both closed and open eyes)
+      
+      try {
+        // Check if both sad frames exist
+        const closedImg = new Image();
+        const openImg = new Image();
+        
+        await Promise.all([
+          new Promise((resolve, reject) => {
+            closedImg.onload = () => resolve(true);
+            closedImg.onerror = () => reject();
+            closedImg.src = sadClosedUrl;
+          }),
+          new Promise((resolve, reject) => {
+            openImg.onload = () => resolve(true);
+            openImg.onerror = () => reject();
+            openImg.src = sadOpenUrl;
+          })
+        ]);
+        
+        setHasSadFrames(true);
+      } catch {
+        setHasSadFrames(false);
+      }
     };
 
     checkAnimationFrames();
   }, [bunnyImageUrl]);
 
-  // Natural expression pattern (blink, smile, wave)
+  // Sadness animation cycle (when isSad is true)
   useEffect(() => {
+    if (!isSad || !hasSadFrames) {
+      return;
+    }
+
+    const sadnessInterval = setInterval(() => {
+      setSadEyesOpen(prev => !prev); // Toggle between open and closed eyes
+    }, 2000); // Change every 2 seconds for sad blinking pattern
+
+    return () => {
+      clearInterval(sadnessInterval);
+    };
+  }, [isSad, hasSadFrames]);
+
+  // Natural expression pattern (blink, smile, wave) - disabled when sad
+  useEffect(() => {
+    if (isSad) {
+      return; // No happy expressions when sad
+    }
     
     if (!hasBlinkFrame && !hasSmileFrame && !hasWaveFrame) {
       return;
@@ -622,20 +708,84 @@ export default function AnimatedBunny({ bunnyImageUrl, className, alt = "Bunny",
     // Fallback to default if bunnyImageUrl is empty or undefined
     const baseUrl = bunnyImageUrl || '/base-bunnies/bunny-base.png';
     
-    // Priority: wave > smile > blink > normal
+    // Determine if this is a numbered folder
+    const isNumberedFolder = /\/\d{4}\//.test(baseUrl);
+    
+    // Priority: sadness > wave > smile > blink > normal
+    if (isSad && hasSadFrames && bunnyImageUrl) {
+      if (isNumberedFolder) {
+        const folderMatch = baseUrl.match(/\/(\d{4})\/\d{4}-normal\.png(\?.*)?$/);
+        if (folderMatch) {
+          const outfitNumber = folderMatch[1];
+          const queryParams = folderMatch[2] || '';
+          const basePath = baseUrl.replace(`/${outfitNumber}-normal.png${queryParams}`, '');
+          const sadUrl = `${basePath}/${outfitNumber}-${sadEyesOpen ? 'sad-open-eyes' : 'sad-closed-eyes'}.png${queryParams}`;
+          console.log('🖼️ Returning sad frame:', sadUrl);
+          return sadUrl;
+        }
+      } else {
+        const sadUrl = baseUrl.replace('/normal.png', sadEyesOpen ? '/sad-open-eyes.png' : '/sad-closed-eyes.png');
+        console.log('🖼️ Returning sad frame:', sadUrl);
+        return sadUrl;
+      }
+    }
+    
     if (hasWaveFrame && isWaving && bunnyImageUrl) {
-      return baseUrl.replace('/normal.png', '/wave.png');
+      if (isNumberedFolder) {
+        const folderMatch = baseUrl.match(/\/(\d{4})\/\d{4}-normal\.png(\?.*)?$/);
+        if (folderMatch) {
+          const outfitNumber = folderMatch[1];
+          const queryParams = folderMatch[2] || '';
+          const basePath = baseUrl.replace(`/${outfitNumber}-normal.png${queryParams}`, '');
+          const waveUrl = `${basePath}/${outfitNumber}-wave.png${queryParams}`;
+          console.log('🖼️ Returning wave frame:', waveUrl);
+          return waveUrl;
+        }
+      } else {
+        const waveUrl = baseUrl.replace('/normal.png', '/wave.png');
+        console.log('🖼️ Returning wave frame:', waveUrl);
+        return waveUrl;
+      }
     }
     
     if (hasSmileFrame && isSmiling && bunnyImageUrl) {
-      return baseUrl.replace('/normal.png', '/smile.png');
+      if (isNumberedFolder) {
+        const folderMatch = baseUrl.match(/\/(\d{4})\/\d{4}-normal\.png(\?.*)?$/);
+        if (folderMatch) {
+          const outfitNumber = folderMatch[1];
+          const queryParams = folderMatch[2] || '';
+          const basePath = baseUrl.replace(`/${outfitNumber}-normal.png${queryParams}`, '');
+          const smileUrl = `${basePath}/${outfitNumber}-smile.png${queryParams}`;
+          console.log('🖼️ Returning smile frame:', smileUrl);
+          return smileUrl;
+        }
+      } else {
+        const smileUrl = baseUrl.replace('/normal.png', '/smile.png');
+        console.log('🖼️ Returning smile frame:', smileUrl);
+        return smileUrl;
+      }
     }
     
     if (hasBlinkFrame && isBlinking && bunnyImageUrl) {
-      return baseUrl.replace('/normal.png', '/blink.png');
+      if (isNumberedFolder) {
+        const folderMatch = baseUrl.match(/\/(\d{4})\/\d{4}-normal\.png(\?.*)?$/);
+        if (folderMatch) {
+          const outfitNumber = folderMatch[1];
+          const queryParams = folderMatch[2] || '';
+          const basePath = baseUrl.replace(`/${outfitNumber}-normal.png${queryParams}`, '');
+          const blinkUrl = `${basePath}/${outfitNumber}-blink.png${queryParams}`;
+          console.log('🖼️ Returning blink frame:', blinkUrl);
+          return blinkUrl;
+        }
+      } else {
+        const blinkUrl = baseUrl.replace('/normal.png', '/blink.png');
+        console.log('🖼️ Returning blink frame:', blinkUrl);
+        return blinkUrl;
+      }
     }
     
     // Use normal frame or fallback
+    console.log('🖼️ Returning normal frame:', baseUrl);
     return baseUrl;
   };
 

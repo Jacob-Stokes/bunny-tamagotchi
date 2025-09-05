@@ -119,7 +119,8 @@ function getActionEffects(action: ActionType): StatModification {
 export function BunnyProvider({ children }: { children: React.ReactNode }) {
   const [state, dispatch] = useReducer(bunnyReducer, defaultState);
   const [loading, setLoading] = useState(true);
-  const [bunnyImageUrl, setBunnyImageUrl] = useState('');
+  const [bunnyImageUrl, setBunnyImageUrl] = useState('/generated-bunnies/0001/0001-normal.png');
+  console.log('🎭 BunnyContext render - bunnyImageUrl:', bunnyImageUrl, 'state.id:', state.id, 'loading:', loading);
   const [imageGenerating, setImageGenerating] = useState(false);
   const [imageLoading, setImageLoading] = useState(true);
 
@@ -152,6 +153,7 @@ export function BunnyProvider({ children }: { children: React.ReactNode }) {
   }, [user]);
 
   const loadBunnyData = async () => {
+    console.log('🔧 loadBunnyData called with user:', user?.id);
     if (!user) return;
 
     setLoading(true);
@@ -251,45 +253,46 @@ export function BunnyProvider({ children }: { children: React.ReactNode }) {
 
         setCurrentEquipment(fullSignature);
 
-        // If no items equipped, use base-bunny-clean (transparent processed base)
-        if (equippedItems.length === 0) {
-          setBunnyImageUrl('/generated-bunnies/base-bunny-clean/normal.png');
-          setImageLoading(false);
-          return;
+        // First check if there's an active outfit from junction table
+        console.log(`🔍 Checking for active outfit for bunny: ${state.id}`);
+        try {
+          const { data: activeOutfitRecord, error: outfitError } = await InventoryService.serviceClient
+            .from('bunny_outfits')
+            .select(`
+              outfit:outfits(name, image_urls)
+            `)
+            .eq('bunny_id', state.id)
+            .eq('is_active', true)
+            .limit(1)
+            .single();
+
+          if (!outfitError && activeOutfitRecord?.outfit) {
+            const activeOutfit = activeOutfitRecord.outfit;
+            const activeOutfitUrl = activeOutfit.image_urls?.[0] || `/generated-bunnies/${activeOutfit.name}/${activeOutfit.name}-normal.png`;
+            console.log(`🎯 Using active outfit: ${activeOutfit.name}, URL: ${activeOutfitUrl}`);
+            setBunnyImageUrl(activeOutfitUrl);
+            setImageLoading(false);
+            return;
+          } else {
+            console.log(`❌ No active outfit found, error:`, outfitError);
+          }
+        } catch (junctionError) {
+          console.log('No active outfit found in junction table, proceeding with equipment logic');
         }
 
-        // Check if an outfit image exists for this combination using equipment-based cache key
-        const cacheKey = CacheUtils.getBunnyItemsCacheKey(
-          equippedItems.map(item => ({
-            item_id: item.item_id,
-            slot: item.slot, 
-            image_url: item.image_url,
-            name: item.name
-          })),
-          selectedBaseBunny
-        );
-        const outfitImageUrl = `/generated-bunnies/${cacheKey}/normal.png`;
-        
-        
-        try {
-          const response = await fetch(outfitImageUrl, { method: 'HEAD' });
-          if (response.ok) {
-            setBunnyImageUrl(outfitImageUrl);
-          } else {
-            // If generated outfit doesn't exist, fall back to base-bunny-clean
-            setBunnyImageUrl('/generated-bunnies/base-bunny-clean/normal.png');
-          }
-          setImageLoading(false);
-        } catch {
-          // If fetch fails, fall back to base-bunny-clean
-          setBunnyImageUrl('/generated-bunnies/base-bunny-clean/normal.png');
-          setImageLoading(false);
-        }
+        // TEMP FIX: Always use outfit 0001 instead of base bunny
+        console.log(`🎯 No active outfit found - forcing outfit 0001 instead of base bunny`);
+        const outfitImageUrl = `/generated-bunnies/0001/0001-normal.png`;
+        setBunnyImageUrl(outfitImageUrl);
+        setImageLoading(false);
+        return;
 
       } catch (error) {
         console.error('Error checking existing outfit:', error);
-        // If entire outfit check fails, fall back to base-bunny-clean
-        setBunnyImageUrl('/generated-bunnies/base-bunny-clean/normal.png');
+        // If entire outfit check fails, use outfit 0001 instead of base bunny
+        const outfitImageUrl = `/generated-bunnies/0001/0001-normal.png`;
+        console.log(`🎯 Error fallback: Setting bunnyImageUrl to: ${outfitImageUrl}`);
+        setBunnyImageUrl(outfitImageUrl);
         setImageLoading(false);
       }
     };
