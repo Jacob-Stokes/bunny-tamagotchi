@@ -102,16 +102,37 @@ export class InventoryService {
 
       if (invError) throw invError;
 
-      // Get equipment with item details using service client (bypasses RLS)
-      const { data: equipmentData, error: equipError } = await serviceClient
-        .from('bunny_equipment')
+      // ONLY use junction table system - single source of truth
+      console.log(`🎒 Loading equipment from active outfit for bunny: ${bunnyId}`);
+      
+      const { data: outfitEquipment, error: equipError } = await serviceClient
+        .from('outfit_items')
         .select(`
-          *,
-          item:items(*)
+          item_id,
+          slot,
+          item:items(*),
+          outfit:outfits!inner(
+            bunny_outfits!inner(bunny_id, is_active)
+          )
         `)
-        .eq('bunny_id', bunnyId);
+        .eq('outfit.bunny_outfits.bunny_id', bunnyId)
+        .eq('outfit.bunny_outfits.is_active', true);
 
       if (equipError) throw equipError;
+      
+      // Transform outfit items to match equipment structure (or empty array if no active outfit)
+      const equipmentData = (outfitEquipment || []).map(oi => ({
+        id: `outfit-${oi.item_id}`, // Synthetic ID
+        bunny_id: bunnyId,
+        item_id: oi.item_id,
+        slot: oi.slot,
+        equipped_at: new Date().toISOString(),
+        item: oi.item
+      }));
+      
+      console.log(`📦 Loaded ${equipmentData.length} items from active outfit (junction table only)`);
+      
+      // Note: If no active outfit, equipmentData will be empty array (correct for base bunny state)
       
 
       // Process inventory

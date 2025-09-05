@@ -28,6 +28,7 @@ interface ActionsTabsProps {
   onWardrobeSelectedItemsChange?: (items: {[slot: string]: string}) => void;
   wardrobeSelectedItems?: {[slot: string]: string};
   onClearWardrobeChanges?: () => void;
+  onInventoryUpdate?: () => void;
 }
 
 export default function ActionsTabs({ 
@@ -41,7 +42,8 @@ export default function ActionsTabs({
   onToggleDebugMode = () => {},
   onWardrobeSelectedItemsChange,
   wardrobeSelectedItems = {},
-  onClearWardrobeChanges
+  onClearWardrobeChanges,
+  onInventoryUpdate
 }: ActionsTabsProps) {
   const [equippedItems, setEquippedItems] = useState<Array<{ item_id: string; slot: string; image_url: string; name: string }>>([]);
   const [showItemsManagement, setShowItemsManagement] = useState(false);
@@ -248,6 +250,7 @@ export default function ActionsTabs({
             onSelectedItemsChange={onWardrobeSelectedItemsChange}
             selectedItems={wardrobeSelectedItems}
             onClearChanges={onClearWardrobeChanges}
+            onInventoryUpdate={onInventoryUpdate}
           />
         )}
 

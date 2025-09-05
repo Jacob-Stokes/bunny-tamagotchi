@@ -434,4 +434,17 @@ export class OutfitService {
       return false;
     }
   }
+
+  // Convenience methods matching the Wardrobe component's expected API
+  static async getFavouriteOutfits(userId: string): Promise<string[]> {
+    return this.getFavouriteOutfitKeys(userId);
+  }
+
+  static async addToFavourites(userId: string, outfitKey: string): Promise<boolean> {
+    return this.addOutfitKeyToFavourites(userId, outfitKey);
+  }
+
+  static async removeFromFavourites(userId: string, outfitKey: string): Promise<boolean> {
+    return this.removeOutfitKeyFromFavourites(userId, outfitKey);
+  }
 }

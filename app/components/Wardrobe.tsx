@@ -10,6 +10,7 @@ import { Item, BunnyFullInventory, SlotType } from '../types/inventory';
 import OutfitPreview from './OutfitPreview';
 import AnimatedBunny from './BlinkingBunny';
 import Shop from './Shop';
+import { supabase } from '../lib/supabase';
 
 interface WardrobeProps {
   className?: string;
@@ -17,11 +18,13 @@ interface WardrobeProps {
   onSelectedItemsChange?: (items: {[slot: string]: string}) => void;
   selectedItems?: {[slot: string]: string};
   onClearChanges?: () => void;
+  onInventoryUpdate?: () => void;
 }
 
-export default function Wardrobe({ className = '', bunnyImageUrl, onSelectedItemsChange, selectedItems = {}, onClearChanges }: WardrobeProps) {
+export default function Wardrobe({ className = '', bunnyImageUrl, onSelectedItemsChange, selectedItems = {}, onClearChanges, onInventoryUpdate }: WardrobeProps) {
   const [bunnyInventory, setBunnyInventory] = useState<BunnyFullInventory | null>(null);
   const [loading, setLoading] = useState(false);
+  const [applyingOutfit, setApplyingOutfit] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedSlot, setSelectedSlot] = useState<SlotType>('head');
   const [saving, setSaving] = useState(false);
@@ -170,23 +173,28 @@ export default function Wardrobe({ className = '', bunnyImageUrl, onSelectedItem
     accessory: { name: 'Accessory', icon: '✨', description: 'Jewelry, bags, and other accessories' },
   } as const;
 
-  const loadInventory = useCallback(async () => {
+  const loadInventory = useCallback(async (silent = false) => {
     if (!user || user.id === 'guest-user' || !bunnyState.id) {
       setError('Sign in to access your wardrobe');
       return;
     }
 
-    setLoading(true);
+    if (!silent) {
+      setLoading(true);
+    }
     setError(null);
     
     try {
       const inventory = await InventoryService.getBunnyFullInventory(bunnyState.id);
+      console.log('🎒 loadInventory - Loaded equipment:', Object.keys(inventory?.equipment || {}));
       setBunnyInventory(inventory);
     } catch (err: any) {
       setError('Unable to load wardrobe');
       console.error('Error loading inventory:', err);
     } finally {
-      setLoading(false);
+      if (!silent) {
+        setLoading(false);
+      }
     }
   }, [user, bunnyState.id]);
 
@@ -243,7 +251,7 @@ export default function Wardrobe({ className = '', bunnyImageUrl, onSelectedItem
     window.dispatchEvent(new CustomEvent('outfit-generation-start'));
     
     try {
-      setLoading(true);
+      setApplyingOutfit(true);
       // Get items from the correct field - outfits store them in .metadata.equippedItems from the API transform
       const items = outfit.metadata?.equippedItems || outfit.equippedItems || [];
       console.log('👗 DEBUG - Items to apply:', items);
@@ -254,26 +262,55 @@ export default function Wardrobe({ className = '', bunnyImageUrl, onSelectedItem
       // Also clear parent component's wardrobe state
       onSelectedItemsChange?.({});
       
-      // Apply items to bunny equipment FIRST
-      await applyItemsToBunny(items);
-      
-      // Reload inventory to update UI immediately
-      try {
-        const { InventoryService } = await import('../lib/inventoryService');
-        const newInventory = await InventoryService.getBunnyFullInventory(bunnyState.id);
-        setBunnyInventory(newInventory);
-        console.log('🔄 Inventory reloaded after outfit switch');
-      } catch (error) {
-        console.error('Failed to reload inventory:', error);
-      }
-      
-      // Save this as the active outfit if it has an ID
-      if (outfit.outfitId) {
-        console.log('Setting active outfit:', outfit.outfitId, 'for bunny:', bunnyState.id);
-        await OutfitService.setActiveOutfit(outfit.outfitId, bunnyState.id);
-        console.log('Active outfit set successfully');
+      // New junction table approach - just update active flags
+      if (outfit.outfitId && supabase) {
+        console.log('🔄 Switching to outfit via junction table:', outfit.outfitId);
+        
+        // Use regular authenticated client - RLS policies should allow user to update their own data
+        try {
+          // 1. Set all outfits for this bunny to inactive
+          const { error: deactivateError } = await supabase
+            .from('bunny_outfits')
+            .update({ is_active: false })
+            .eq('bunny_id', bunnyState.id);
+          
+          if (deactivateError) {
+            console.error('❌ Error deactivating outfits:', deactivateError);
+            throw deactivateError;
+          }
+          
+          // 2. Set the selected outfit to active
+          const { error: activateError } = await supabase
+            .from('bunny_outfits')
+            .update({ is_active: true })
+            .eq('bunny_id', bunnyState.id)
+            .eq('outfit_id', outfit.outfitId);
+          
+          if (activateError) {
+            console.error('❌ Error activating outfit:', activateError);
+            throw activateError;
+          }
+          
+          console.log('✅ Outfit switched via junction table');
+          
+          // 3. Reload inventory to update UI (junction table approach only) - silent to avoid showing "Loading wardrobe"
+          await loadInventory(true);
+          console.log('🔄 Inventory synced after outfit switch');
+          
+          // 4. Notify parent component to update its inventory state
+          onInventoryUpdate?.();
+          console.log('🔄 Parent inventory updated via callback');
+          
+          // 5. Reload the outfit list to show updated active states
+          await loadGeneratedOutfits();
+          console.log('🔄 Outfit list refreshed');
+          
+        } catch (dbError) {
+          console.error('❌ Database error during outfit switch:', dbError);
+          setError(`Failed to switch outfit: ${dbError.message}`);
+        }
       } else {
-        console.log('Outfit has no outfitId, cannot persist:', outfit);
+        console.log('Outfit has no outfitId, cannot switch:', outfit);
       }
       
       // THEN set the image URL after equipment is complete (ensure bunny is still off-screen)
@@ -285,7 +322,10 @@ export default function Wardrobe({ className = '', bunnyImageUrl, onSelectedItem
       console.error('Failed to switch to outfit:', error);
       setError('Failed to switch to outfit');
     } finally {
-      setLoading(false);
+      // Keep the "Applying Outfit" state for 1 second for better UX
+      setTimeout(() => {
+        setApplyingOutfit(false);
+      }, 1000);
     }
   };
 
@@ -496,24 +536,8 @@ export default function Wardrobe({ className = '', bunnyImageUrl, onSelectedItem
     }
   };
 
-  // Apply items directly to bunny equipment
-  const applyItemsToBunny = async (items: any[]) => {
-    const { InventoryService } = await import('../lib/inventoryService');
-    
-    // First unequip ALL currently equipped items
-    const currentSlots = Object.keys(bunnyInventory?.equipment || {});
-    for (const slot of currentSlots) {
-      await InventoryService.unequipSlot(bunnyState.id, slot as any);
-    }
-    
-    // Then equip only the new outfit items
-    for (const item of items) {
-      await InventoryService.equipItem(bunnyState.id, item.item_id);
-    }
-    
-    // Refresh inventory
-    await loadInventory();
-  };
+  // NOTE: Removed applyItemsToBunny - no longer needed with junction table approach
+  // All equipment management now happens through bunny_outfits + outfit_items tables
 
   const activateOutfit = async (outfitId: string) => {
     if (!bunnyState.id) return;
@@ -595,41 +619,10 @@ export default function Wardrobe({ className = '', bunnyImageUrl, onSelectedItem
     return Object.values(bunnyInventory?.equipment || {}).some(eq => eq.item_id === itemId);
   };
 
-  // Check if an outfit is currently worn by comparing equipped items
+  // Check if an outfit is currently worn using the database active flag
   const isOutfitCurrentlyWorn = (outfit: any) => {
-    if (!bunnyInventory?.equipment) return false;
-    
-    // Try different possible locations for equipped items data
-    const outfitItems = outfit.metadata?.equippedItems || outfit.equippedItems;
-    
-    const currentEquippedIds = Object.values(bunnyInventory.equipment).map(eq => eq.item_id).sort();
-    
-    // Special case: Base Bunny outfit (no equipped items)
-    if (!outfitItems || outfitItems.length === 0) {
-      return currentEquippedIds.length === 0;
-    }
-    
-    // Handle different data formats
-    let outfitItemIds;
-    if (Array.isArray(outfitItems)) {
-      // If it's an array of item IDs (strings)
-      if (typeof outfitItems[0] === 'string') {
-        outfitItemIds = outfitItems.sort();
-      } 
-      // If it's an array of item objects
-      else if (outfitItems[0]?.item_id) {
-        outfitItemIds = outfitItems.map(item => item.item_id).sort();
-      }
-      else {
-        return false;
-      }
-    } else {
-      return false;
-    }
-    
-    // Compare arrays - outfit is worn if all items match exactly
-    return currentEquippedIds.length === outfitItemIds.length && 
-           currentEquippedIds.every((id, index) => id === outfitItemIds[index]);
+    // Use the isActive flag from the API response
+    return outfit.isActive === true;
   };
 
   if (!user || user.id === 'guest-user') {
@@ -665,6 +658,16 @@ export default function Wardrobe({ className = '', bunnyImageUrl, onSelectedItem
       <div className={`text-center py-8 ${className}`}>
         <div className="text-4xl mb-3 animate-bounce">👗</div>
         <p className="text-purple-600 text-sm">Loading wardrobe...</p>
+      </div>
+    );
+  }
+
+  // Show applying outfit overlay when switching outfits
+  if (applyingOutfit) {
+    return (
+      <div className={`text-center py-8 ${className}`}>
+        <div className="text-4xl mb-3 animate-bounce">✨</div>
+        <p className="text-purple-600 text-sm font-medium">Applying outfit...</p>
       </div>
     );
   }

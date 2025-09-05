@@ -23,6 +23,7 @@ export default function Home() {
   const [showBunnyHopGame, setShowBunnyHopGame] = useState(false);
   const [wardrobeSelectedItems, setWardrobeSelectedItems] = useState<{[slot: string]: string}>({});
   const [bunnyInventory, setBunnyInventory] = useState<any>(null);
+  const [animatingItems, setAnimatingItems] = useState(false);
   
   const tabs = [
     { id: 'actions', label: 'Bunny', icon: '🐰' },
@@ -108,6 +109,28 @@ export default function Home() {
   const handleClearWardrobeChanges = useCallback(() => {
     setWardrobeSelectedItems({});
   }, []);
+
+  // Callback to reload inventory when outfit changes
+  const handleInventoryUpdate = useCallback(async () => {
+    if (state?.id) {
+      try {
+        // Trigger animation before loading new data
+        setAnimatingItems(true);
+        
+        const inventory = await InventoryService.getBunnyFullInventory(state.id);
+        setBunnyInventory(inventory);
+        console.log('🔄 Page-level inventory updated after outfit switch');
+        
+        // Reset animation after a short delay to allow for staggered animations
+        setTimeout(() => {
+          setAnimatingItems(false);
+        }, 100);
+      } catch (error) {
+        console.error('Failed to reload inventory after outfit switch:', error);
+        setAnimatingItems(false);
+      }
+    }
+  }, [state?.id]);
   return (
     <main className="max-w-sm mx-auto px-2 flex flex-col pb-20" style={{ 
       height: '80vh' /* Stop before URL bar area on mobile */
@@ -257,14 +280,22 @@ export default function Home() {
                                     return aIndex - bIndex;
                                   });
                                   
-                                  return sortedSlots.map(slot => {
+                                  return sortedSlots.map((slot, index) => {
                                     // Check if user has made changes to this slot
                                     const selectedItemId = wardrobeSelectedItems[slot];
+                                    
+                                    // Animation classes for slide-in effect
+                                    const getAnimationClass = (index: number) => {
+                                      const delay = index * 100; // Stagger by 100ms each
+                                      return animatingItems 
+                                        ? `transform translate-x-full opacity-0 transition-all duration-300 ease-out`
+                                        : `transform translate-x-0 opacity-100 transition-all duration-300 ease-out delay-[${delay}ms]`;
+                                    };
                                     
                                     if (selectedItemId === 'EMPTY_SLOT') {
                                       // User wants to remove this slot
                                       return (
-                                        <div key={slot} className="flex items-center gap-2 bg-orange-100 rounded p-1.5">
+                                        <div key={slot} className={`flex items-center gap-2 bg-orange-100 rounded p-1.5 ${getAnimationClass(index)}`}>
                                           <div className="w-6 h-6 bg-orange-200 rounded flex items-center justify-center">
                                             <span className="text-orange-600 text-xxs">∅</span>
                                           </div>
@@ -295,7 +326,7 @@ export default function Home() {
                                       const item = inventoryItem?.item;
                                       
                                       return (
-                                        <div key={slot} className="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded p-1.5">
+                                        <div key={slot} className={`flex items-center gap-2 bg-blue-50 border border-blue-200 rounded p-1.5 ${getAnimationClass(index)}`}>
                                           <div className="w-6 h-6 bg-white border border-blue-300 rounded overflow-hidden">
                                             {item?.image_url ? (
                                               <img 
@@ -337,7 +368,7 @@ export default function Home() {
                                       // Debug log to see what data we have
                                       
                                       return (
-                                        <div key={slot} className="flex items-center gap-2 bg-green-50 rounded p-1.5">
+                                        <div key={slot} className={`flex items-center gap-2 bg-green-50 rounded p-1.5 ${getAnimationClass(index)}`}>
                                           <div className="w-6 h-6 bg-white border border-green-200 rounded overflow-hidden">
                                             {(currentItem.image_url || currentItem.item?.image_url) ? (
                                               <img 
@@ -443,6 +474,7 @@ export default function Home() {
                   onWardrobeSelectedItemsChange={handleWardrobeSelectedItemsChange}
                   wardrobeSelectedItems={wardrobeSelectedItems}
                   onClearWardrobeChanges={handleClearWardrobeChanges}
+                  onInventoryUpdate={handleInventoryUpdate}
                 />
               </div>
             </>

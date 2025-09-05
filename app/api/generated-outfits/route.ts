@@ -20,54 +20,37 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Query the database for saved outfits
-    let query = supabase
-      .from('outfits')
-      .select('*')
-      .order('created_at', { ascending: false });
-
-    const { data: outfits, error } = await query;
-
-    if (error) {
-      console.error('Database error loading outfits:', error);
-      return NextResponse.json(
-        { error: 'Failed to load outfits from database' },
-        { status: 500 }
-      );
-    }
-
-    // Filter outfits based on access rules:
-    // 1. Base Bunny outfit (name = 'Base Bunny') - available to everyone (global)
-    // 2. Outfits tied to the requesting bunny - only show for that specific bunny
-    // 3. User's own created outfits - show for any bunny owned by that user
-    let accessibleOutfits = outfits || [];
+    // Query outfits using junction table - only get outfits the bunny owns
+    let accessibleOutfits = [];
     
     if (bunnyId) {
-      // Get the user_id of the bunny requesting outfits
-      const { data: bunnyData } = await supabase
-        .from('bunnies')
-        .select('user_id')
-        .eq('id', bunnyId)
-        .single();
-      
-      const requestingUserId = bunnyData?.user_id;
-      
-      if (requestingUserId) {
-        // Filter to show accessible outfits:
-        // - Base Bunny (global for everyone)
-        // - Outfits tied to this specific bunny
-        // - User's own created outfits
-        accessibleOutfits = outfits?.filter((outfit: any) => 
-          outfit.name === 'Base Bunny' || // Global base bunny
-          outfit.bunny_id === bunnyId || // Outfits for this specific bunny
-          outfit.user_id === requestingUserId // User's own outfits
-        ) || [];
+      // Get outfits the bunny owns via junction table with outfit items
+      const { data: outfits, error } = await supabase
+        .from('outfits')
+        .select(`
+          *,
+          bunny_outfits!inner(bunny_id, is_active),
+          outfit_items(
+            item_id,
+            slot,
+            item:items(name, image_url)
+          )
+        `)
+        .eq('bunny_outfits.bunny_id', bunnyId)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Database error loading outfits:', error);
+        return NextResponse.json(
+          { error: 'Failed to load outfits from database' },
+          { status: 500 }
+        );
       }
+
+      accessibleOutfits = outfits || [];
     } else {
-      // No bunny_id provided - show only global base bunny
-      accessibleOutfits = outfits?.filter((outfit: any) => 
-        outfit.name === 'Base Bunny'
-      ) || [];
+      // No bunny_id provided - return empty (user needs to be authenticated)
+      accessibleOutfits = [];
     }
 
     // Transform accessible outfits to the expected format for the frontend
@@ -94,18 +77,23 @@ export async function GET(request: NextRequest) {
         generatedAt: outfit.created_at,
         baseBunny: outfit.base_bunny || 'bunny-base.png',
         scene: outfit.scene || 'meadow',
-        equippedItems: outfit.equipped_items?.map((item: any) => item.name) || [],
+        equippedItems: outfit.outfit_items?.map((item: any) => item.item?.name) || [],
         metadata: {
           baseBunny: outfit.base_bunny,
           scene: outfit.scene,
-          equippedItems: outfit.equipped_items,
+          equippedItems: outfit.outfit_items?.map((oi: any) => ({
+            item_id: oi.item_id,
+            name: oi.item?.name,
+            slot: oi.slot,
+            image_url: oi.item?.image_url
+          })) || [],
           name: outfit.name,
           id: outfit.id
         },
         // Add outfit database info
         outfitId: outfit.id,
         name: outfit.name,
-        isActive: outfit.is_active
+        isActive: outfit.bunny_outfits?.[0]?.is_active || false
       };
     });
 
