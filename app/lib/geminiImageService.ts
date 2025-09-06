@@ -8,6 +8,7 @@ interface EquippedItem {
   slot: string;
   image_url: string;
   name: string;
+  rendering_instructions?: string;
 }
 
 class GeminiImageService {
@@ -103,9 +104,9 @@ class GeminiImageService {
         case 'upper_body':
           return `wearing a ${itemName} on its upper body/torso (this should look like the exact ${itemName} clothing but properly scaled and positioned for a bunny)`;
         case 'lower_body':
-          return `wearing a ${itemName} on its lower body (this should look like the exact ${itemName} clothing but properly scaled and positioned for a bunny)`;
+          return `wearing a ${itemName} on its lower body - positioned around the waist/hip area only, not extending up to the chest or down to the feet (this should look like the exact ${itemName} clothing but properly scaled and positioned like pants/shorts would naturally sit on a bunny)`;
         case 'feet':
-          return `wearing ${itemName} on its feet (this should look like the exact ${itemName} footwear but properly scaled and positioned for bunny paws)`;
+          return `wearing ${itemName} that fit properly on the bunny's feet - the bunny's legs should extend naturally into the footwear, scaled appropriately for bunny proportions, and integrated seamlessly so the shoes appear worn by the bunny rather than placed next to it. Maintain consistent pixel art style`;
         case 'accessory':
           return `with a ${itemName} as an accessory (this should look like the exact ${itemName} item but properly scaled and positioned)`;
         default:
@@ -183,9 +184,9 @@ This should look like official character art for a mobile game - high quality, c
         case 'upper_body':
           return `the ${itemName} from image ${imageIndex} fitted on the bunny's upper body/torso`;
         case 'lower_body':
-          return `the ${itemName} from image ${imageIndex} fitted on the bunny's lower body`;
+          return `the ${itemName} from image ${imageIndex} fitted on the bunny's lower body - positioned around the waist/hip area only, not covering the chest or extending down to the feet`;
         case 'feet':
-          return `the ${itemName} from image ${imageIndex} worn properly ON the bunny's feet (the bunny's feet should be INSIDE the shoes/boots, not below them or separate from them)`;
+          return `the ${itemName} from image ${imageIndex} fitted naturally on the bunny's feet - the bunny's legs should extend into the footwear with proper proportional scaling for the bunny's small size. The footwear should appear as an integrated part of the bunny, not as separate objects placed nearby. Match the pixel art style precisely`;
         case 'accessory':
           return `the ${itemName} from image ${imageIndex} naturally worn as an accessory that fits the bunny's proportions`;
         default:
@@ -417,28 +418,34 @@ This should look like official character art for a mobile game - high quality, c
         const itemName = item.name.toLowerCase();
         
         let itemDescription;
-        switch (item.slot) {
-          case 'head':
-            itemDescription = `${itemName} on the bunny's head`;
-            break;
-          case 'face':
-            itemDescription = `${itemName} naturally integrated and fitted on the bunny's face`;
-            break;
-          case 'upper_body':
-            itemDescription = `${itemName} on the bunny's upper body`;
-            break;
-          case 'lower_body':
-            itemDescription = `${itemName} on the bunny's lower body`;
-            break;
-          case 'feet':
-            itemDescription = `${itemName} on the bunny's feet`;
-            break;
-          case 'accessory':
-            itemDescription = `${itemName} as an accessory`;
-            break;
-          default:
-            itemDescription = `${itemName} on the bunny`;
-            break;
+        
+        // Use custom rendering instructions if available, otherwise fall back to slot-based descriptions
+        if (item.rendering_instructions) {
+          itemDescription = `${itemName} - ${item.rendering_instructions}`;
+        } else {
+          switch (item.slot) {
+            case 'head':
+              itemDescription = `${itemName} on the bunny's head`;
+              break;
+            case 'face':
+              itemDescription = `${itemName} naturally integrated and fitted on the bunny's face`;
+              break;
+            case 'upper_body':
+              itemDescription = `${itemName} on the bunny's upper body`;
+              break;
+            case 'lower_body':
+              itemDescription = `${itemName} positioned around the bunny's waist/hip area only`;
+              break;
+            case 'feet':
+              itemDescription = `${itemName} properly fitted on the bunny's feet - scale the footwear to match the bunny's small proportions, position so the bunny's legs extend naturally into the footwear, and ensure the shoes appear to be worn BY the bunny rather than placed next to it. Match the pixel art style exactly`;
+              break;
+            case 'accessory':
+              itemDescription = `${itemName} as an accessory`;
+              break;
+            default:
+              itemDescription = `${itemName} on the bunny`;
+              break;
+          }
         }
 
         const prompt = `Dress the bunny from image 1 with the ${itemDescription} from image 2. Integrate the item naturally into the bunny's design as if it were drawn as part of the original character - NOT as a separate overlay on top. Keep the same pixel art style and bunny proportions, but make the item look like it belongs on the bunny's body. CRITICAL FOR SHOES/BOOTS: The bunny's feet must be INSIDE the footwear, replacing the original feet. Face items should fit the bunny's face shape naturally. The item should appear to be worn by the bunny, not floating above it. Use a clean white background.`;
@@ -460,6 +467,11 @@ This should look like official character art for a mobile game - high quality, c
         ];
 
         const response = await model.generateContent(contentParts);
+        
+        // Add rate limiting delay between API calls (except for the last item)
+        if (i < equippedItems.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 1500)); // 1.5 second delay
+        }
         
         // Extract generated image for next iteration
         if (response.response.candidates?.[0]?.content?.parts) {
@@ -822,7 +834,8 @@ STYLE CONSISTENCY:
 
     const itemDescriptions = equippedItems.map((item, index) => {
       const imageRef = `image ${index + 2}`; // +2 because image 1 is the base bunny
-      return `${item.name.toLowerCase()} (reference: ${imageRef}) on the bunny's ${item.slot.replace('_', ' ')}`;
+      const slotGuidance = this.getSlotFittingGuidance(item.slot);
+      return `${item.name.toLowerCase()} (reference: ${imageRef}) ${slotGuidance}`;
     }).join(', ');
 
     return `Create a pixel art bunny wearing: ${itemDescriptions}.
@@ -845,6 +858,25 @@ TECHNICAL REQUIREMENTS:
 - Maintain crisp pixel art aesthetic with no blur or anti-aliasing
 - Keep the same small resolution as the original bunny
 - Items should enhance the bunny without overwhelming it`;
+  }
+
+  private getSlotFittingGuidance(slot: string): string {
+    switch (slot) {
+      case 'head':
+        return `properly fitted on the bunny's head, adapting to the bunny's ear shape and head size`;
+      case 'face':
+        return `positioned naturally on the bunny's face without covering important facial features`;
+      case 'upper_body':
+        return `fitted on the bunny's upper torso/chest area, adapting to the bunny's body shape`;
+      case 'lower_body':
+        return `positioned on the bunny's lower body ONLY - covering the hip/waist area without extending up to the chest or down to the feet. Think of where pants or shorts would naturally sit on a bunny - around the waist and upper legs, leaving the torso and lower legs visible`;
+      case 'feet':
+        return `fitted naturally on the bunny's feet with the bunny's legs extending into the footwear. Scale appropriately for bunny proportions and integrate seamlessly so the footwear appears worn by the bunny, not placed beside it. Maintain pixel art consistency`;
+      case 'accessory':
+        return `positioned as a natural accessory that complements the bunny without overwhelming it`;
+      default:
+        return `appropriately fitted on the bunny's ${slot.replace('_', ' ')}`;
+    }
   }
 
   // Generate scene backgrounds (one-time setup)
@@ -1071,12 +1103,14 @@ This is for a blinking animation that requires perfect frame alignment. Any posi
         return `${baseInstruction}
         
 ANIMATION CHANGE:
-- ONLY raise one paw/arm slightly in a waving gesture
-- Do NOT move the bunny's body, head, eyes, or any clothing/items
+- Raise the bunny's right paw/arm up and slightly outward in a clear waving gesture (like saying hello)
+- The raised paw should be noticeably higher than in the normal pose - lifted up near head level
+- Keep the paw open/spread in a friendly waving position
+- Do NOT move the bunny's body, head, eyes, left arm, or any clothing/items
 - Do NOT shift the bunny's position even by 1 pixel
-- Keep the bunny in exactly the same spot with exactly the same pose
-- Only one arm/paw should be raised - everything else pixel-perfect identical
-- This is for a friendly wave animation`;
+- Everything else must remain pixel-perfect identical to the original
+- This should look like the bunny is actively waving hello to someone
+- Make the wave gesture obvious and friendly - not subtle`;
 
       case 'smile':
         return `${baseInstruction}
@@ -1102,6 +1136,36 @@ ANIMATION CHANGE:
 - Keep everything else identical
 - This is for a sleeping animation`;
 
+      case 'sad-closed-eyes':
+        return `${baseInstruction}
+
+CRITICAL ALIGNMENT REQUIREMENTS:
+- The bunny must be in EXACTLY the same position as the original image
+- Do NOT move the bunny body, head, ears, nose, mouth, or any clothing/accessories
+- Do NOT shift, resize, or reposition anything
+
+ANIMATION CHANGE:
+- ONLY change the bunny's eyes: make them closed with a sad expression
+- The closed eyes should look droopy and sad, not just neutral closed eyes
+- Keep the same head position - no tilting or moving
+- All other features must remain identical to the original
+- This should convey sadness through the eye expression only`;
+
+      case 'sad-open-eyes':
+        return `${baseInstruction}
+
+CRITICAL ALIGNMENT REQUIREMENTS:
+- The bunny must be in EXACTLY the same position as the original image
+- Do NOT move the bunny body, head, ears, nose, mouth, or any clothing/accessories
+- Do NOT shift, resize, or reposition anything
+
+ANIMATION CHANGE:
+- ONLY change the bunny's eyes: make them open but with a clearly sad expression
+- The eyes should look droopy, downcast, or melancholy while remaining open
+- Keep the same head position - no tilting or moving
+- All other features must remain identical to the original
+- This should convey sadness through the open eye expression`;
+
       default:
         return `${baseInstruction}
         
@@ -1119,7 +1183,9 @@ ANIMATION CHANGE:
       const referenceImageMap: { [key: string]: string } = {
         // 'blink': 'bunny-base-blink.png', // Disabled - causes clothing removal
         'smile': 'bunny-base-smile.png',
-        'wave': 'bunny-base-wave.png'
+        'wave': 'bunny-base-wave.png',
+        'sad-closed-eyes': 'bunny-base-sad-closed-eyes.png',
+        'sad-open-eyes': 'bunny-base-sad-open-eyes.png'
         // Add more mappings as we create more reference images
       };
 
