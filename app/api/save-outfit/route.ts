@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { GeminiImageService } from '../../lib/geminiImageService';
 import { OutfitService } from '../../lib/outfitService';
 import { supabase } from '../../lib/supabase';
+const { debugLog, clearLog } = require('../../../debug-logger');
 
 interface SaveOutfitRequest {
   bunny_id: string;
@@ -14,38 +15,6 @@ interface SaveOutfitRequest {
   }>;
 }
 
-// Verify that all generated images actually exist
-async function verifyGeneratedImages(selected_items: Array<{ item_id: string; slot: string; name: string }>, selectedBaseBunny: string) {
-  const fs = require('fs').promises;
-  const path = require('path');
-  const { CacheUtils } = await import('../../lib/cacheUtils');
-  
-  // Convert to EquippedItem format for cache key generation
-  const equippedItems = selected_items.map(item => ({
-    item_id: item.item_id,
-    slot: item.slot,
-    image_url: '',
-    name: item.name
-  }));
-  
-  const cacheKey = CacheUtils.getBunnyItemsCacheKey(equippedItems, selectedBaseBunny);
-  
-  const publicDir = path.join(process.cwd(), 'public');
-  const bunnyDir = path.join(publicDir, 'generated-bunnies', cacheKey);
-  
-  const requiredImages = ['normal.png', 'blink.png', 'smile.png', 'wave.png'];
-  
-  for (const imageName of requiredImages) {
-    const imagePath = path.join(bunnyDir, imageName);
-    try {
-      await fs.access(imagePath);
-    } catch (error) {
-      throw new Error(`Generated image ${imageName} does not exist at ${imagePath}`);
-    }
-  }
-  
-  return cacheKey;
-}
 
 // Apply outfit to bunny (equip all items)
 async function applyOutfitToBunny(bunny_id: string, selected_items: Array<{ item_id: string; slot: string; name: string }>) {
@@ -70,10 +39,19 @@ async function applyOutfitToBunny(bunny_id: string, selected_items: Array<{ item
 }
 
 export async function POST(request: NextRequest) {
+  clearLog(); // Clear previous logs
+  debugLog('=== SAVE OUTFIT REQUEST STARTED ===');
   
   try {
     const body: SaveOutfitRequest = await request.json();
     const { bunny_id, outfit_name, selected_items } = body;
+    
+    debugLog('📥 Request received', {
+      bunny_id,
+      outfit_name,
+      items_count: selected_items.length,
+      items: selected_items
+    });
 
     // For now, skip auth check and use bunny_id as user identifier
     // TODO: Implement proper auth when needed
@@ -124,25 +102,42 @@ export async function POST(request: NextRequest) {
       }
     } as any;
 
+    debugLog('🎨 About to call generate-bunny-image', { mockRequestData: {
+      bunnyId: bunny_id,
+      equippedItemsCount: selected_items.length,
+      generateAnimation: false,
+      forceRegenerate: false
+    }});
+
     // Import and call the POST function directly
     const { POST: generateBunnyImage } = await import('../../api/generate-bunny-image/route');
+    debugLog('📦 generate-bunny-image imported successfully');
+    
     const response = await generateBunnyImage(mockRequest);
+    debugLog('🎯 generate-bunny-image response received', { 
+      status: response.status,
+      statusText: response.statusText,
+      ok: response.ok
+    });
     const result = await response.json();
+    debugLog('📄 Parsed generation result', result);
     
     if (!response.ok) {
+      debugLog('❌ Generation failed - non-OK response', { error: result.error, status: response.status });
       throw new Error(`Gemini generation failed: ${result.error || response.status}`);
     }
     
-    // Verify all images actually exist before proceeding
-    const cacheKey = await verifyGeneratedImages(selected_items, selectedBaseBunny);
-
-    // Prepare image URLs for outfit storage using the correct cache key
-    const baseImagePath = `/generated-bunnies/${cacheKey}`;
+    // Use the actual generated outfit number and folder from the generation result
+    const outfitNumber = result.outfitNumber;
+    const folderName = result.folderName;
+    const baseImagePath = `/generated-bunnies/${folderName}`;
     const imageUrls = {
-      normal: `${baseImagePath}/normal.png`,
-      blink: `${baseImagePath}/blink.png`,
-      smile: `${baseImagePath}/smile.png`,
-      wave: `${baseImagePath}/wave.png`
+      normal: `${baseImagePath}/${outfitNumber}-normal.png`,
+      blink: `${baseImagePath}/${outfitNumber}-blink.png`,
+      smile: `${baseImagePath}/${outfitNumber}-smile.png`,
+      wave: `${baseImagePath}/${outfitNumber}-wave.png`,
+      'sad-closed-eyes': `${baseImagePath}/${outfitNumber}-sad-closed-eyes.png`,
+      'sad-open-eyes': `${baseImagePath}/${outfitNumber}-sad-open-eyes.png`
     };
 
     // Save outfit to database with proper user association
@@ -178,6 +173,11 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error) {
+    debugLog('🔥 FATAL ERROR in save-outfit', { 
+      error: error.message,
+      stack: error.stack,
+      errorObject: error
+    });
     console.error('🔥 Error saving outfit:', error);
     
     return NextResponse.json({ 
@@ -249,3 +249,4 @@ function generateSimpleOutfitName(equippedItems: Array<{ item_id: string; slot: 
   
   return `${randomAdj} ${randomTheme}`;
 }
+

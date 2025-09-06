@@ -9,9 +9,11 @@ interface AnimationDebugPanelProps {
   onToggleDebugMode: () => void;
   personality?: BunnyPersonalityTraits;
   onPersonalityChange?: (personality: BunnyPersonalityTraits) => void;
+  isSad?: boolean;
+  onToggleSadness?: () => void;
 }
 
-export default function AnimationDebugPanel({ onTriggerAnimation, debugMode, onToggleDebugMode, personality, onPersonalityChange }: AnimationDebugPanelProps) {
+export default function AnimationDebugPanel({ onTriggerAnimation, debugMode, onToggleDebugMode, personality, onPersonalityChange, isSad, onToggleSadness }: AnimationDebugPanelProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [activeTab, setActiveTab] = useState<'animations' | 'personality'>('animations');
   
@@ -64,16 +66,31 @@ export default function AnimationDebugPanel({ onTriggerAnimation, debugMode, onT
             <p className="text-xs text-purple-600">
               Test individual animations on your bunny
             </p>
-            <button
-              onClick={onToggleDebugMode}
-              className={`text-xs px-3 py-1 rounded-lg font-medium transition-colors ${
-                debugMode 
-                  ? 'bg-red-600 text-white hover:bg-red-700' 
-                  : 'bg-green-600 text-white hover:bg-green-700'
-              }`}
-            >
-              {debugMode ? '🔴 Debug ON' : '🟢 Natural ON'}
-            </button>
+            <div className="flex gap-2">
+              <button
+                onClick={onToggleDebugMode}
+                className={`text-xs px-3 py-1 rounded-lg font-medium transition-colors ${
+                  debugMode 
+                    ? 'bg-red-600 text-white hover:bg-red-700' 
+                    : 'bg-green-600 text-white hover:bg-green-700'
+                }`}
+              >
+                {debugMode ? '🔴 Debug ON' : '🟢 Natural ON'}
+              </button>
+              {onToggleSadness && (
+                <button
+                  onClick={onToggleSadness}
+                  className={`text-xs px-3 py-1 rounded-lg font-medium transition-colors ${
+                    isSad
+                      ? 'bg-blue-600 text-white hover:bg-blue-700' 
+                      : 'bg-gray-400 text-white hover:bg-gray-500'
+                  }`}
+                  title="Toggle sadness animation (requires sad animation frames)"
+                >
+                  {isSad ? '😢 Sad ON' : '😐 Sad OFF'}
+                </button>
+              )}
+            </div>
           </div>
           
           <div className="flex gap-2 mb-3">

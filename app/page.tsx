@@ -24,6 +24,7 @@ export default function Home() {
   const [wardrobeSelectedItems, setWardrobeSelectedItems] = useState<{[slot: string]: string}>({});
   const [bunnyInventory, setBunnyInventory] = useState<any>(null);
   const [animatingItems, setAnimatingItems] = useState(false);
+  const [isSad, setIsSad] = useState(false);
   
   const tabs = [
     { id: 'actions', label: 'Bunny', icon: '🐰' },
@@ -42,6 +43,7 @@ export default function Home() {
   };
   const [personality, setPersonality] = useState<BunnyPersonalityTraits | undefined>();
   const { state, loading, performAction, getStatPercentage, getStatEmoji, bunnyImageUrl, regenerateBunnyImage, imageGenerating, imageLoading, setBunnyImageUrl } = useBunny();
+  console.log('📷 Page bunnyImageUrl:', bunnyImageUrl);
   const { user, signOut, signInAsGuest } = useAuth();
   const { unreadCount } = useNotifications();
 
@@ -99,6 +101,10 @@ export default function Home() {
   const handleToggleDebugMode = () => {
     const newDebugMode = !debugMode;
     setDebugMode(newDebugMode);
+  };
+
+  const handleToggleSadness = () => {
+    setIsSad(!isSad);
   };
 
   // Stable callback functions to prevent infinite loops
@@ -229,6 +235,7 @@ export default function Home() {
                                 className="w-full h-full object-contain"
                                 debugTrigger={debugTrigger}
                                 debugMode={activeTab === 'wardrobe'}
+                                isSad={isSad}
                               />
                             </div>
                           )}
@@ -475,6 +482,8 @@ export default function Home() {
                   wardrobeSelectedItems={wardrobeSelectedItems}
                   onClearWardrobeChanges={handleClearWardrobeChanges}
                   onInventoryUpdate={handleInventoryUpdate}
+                  isSad={isSad}
+                  onToggleSadness={handleToggleSadness}
                 />
               </div>
             </>

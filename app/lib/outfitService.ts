@@ -20,9 +20,10 @@ export interface Outfit {
     blink?: string;
     smile?: string;
     wave?: string;
+    'sad-closed-eyes'?: string;
+    'sad-open-eyes'?: string;
   };
   is_active: boolean;
-  status: 'pending' | 'generating' | 'completed' | 'failed';
   created_at: string;
   updated_at: string;
 }
@@ -53,8 +54,9 @@ export interface CreateOutfitData {
     blink?: string;
     smile?: string;
     wave?: string;
+    'sad-closed-eyes'?: string;
+    'sad-open-eyes'?: string;
   };
-  status?: 'pending' | 'generating' | 'completed' | 'failed';
 }
 
 export class OutfitService {
@@ -66,19 +68,44 @@ export class OutfitService {
     try {
       const equipmentSignature = this.createEquipmentSignature(data.equipped_items, data.base_bunny, data.scene);
       
+      // Get next folder number for this user by counting existing outfits
+      const { count } = await supabase
+        .from('outfits')
+        .select('*', { count: 'exact', head: true });
+      
+      const folderNumber = (count || 0) + 1;
+      
+      // Generate display name from items
+      const itemNames = data.equipped_items.map(item => item.name);
+      const displayName = itemNames.length > 0 ? itemNames.join(' + ') : 'Base Bunny';
+      
+      // Update image URLs to use new folder structure if folder number available
+      const paddedFolderNumber = String(folderNumber).padStart(4, '0');
+      
+      // For now, just use the new URL structure - file moving will be handled by the API
+      const updatedImageUrls = {
+        normal: `/generated-bunnies/${paddedFolderNumber}/${paddedFolderNumber}-normal.png`,
+        blink: `/generated-bunnies/${paddedFolderNumber}/${paddedFolderNumber}-blink.png`,
+        smile: `/generated-bunnies/${paddedFolderNumber}/${paddedFolderNumber}-smile.png`,
+        wave: `/generated-bunnies/${paddedFolderNumber}/${paddedFolderNumber}-wave.png`,
+        'sad-closed-eyes': `/generated-bunnies/${paddedFolderNumber}/${paddedFolderNumber}-sad-closed-eyes.png`,
+        'sad-open-eyes': `/generated-bunnies/${paddedFolderNumber}/${paddedFolderNumber}-sad-open-eyes.png`
+      };
+      
       const { data: outfit, error } = await supabase
         .from('outfits')
         .insert({
           bunny_id: data.bunny_id,
           user_id: userId,
-          name: data.name,
+          name: data.name, // Technical name
+          display_name: displayName, // User-facing name
+          folder_number: folderNumber,
           equipped_items: data.equipped_items,
           equipment_signature: equipmentSignature,
           base_bunny: data.base_bunny,
           scene: data.scene,
-          image_urls: data.image_urls,
-          is_active: false, // Don't auto-activate, let user choose
-          status: data.status || 'completed' // Default to completed for backward compatibility
+          image_urls: updatedImageUrls, // Use new naming convention
+          is_active: false // Don't auto-activate, let user choose
         })
         .select()
         .single();
@@ -174,28 +201,6 @@ export class OutfitService {
     }
   }
 
-  static async updateOutfitStatus(outfitId: string, status: 'pending' | 'generating' | 'completed' | 'failed', imageUrls?: any): Promise<void> {
-    if (!supabase) {
-      throw new Error('Supabase client not initialized');
-    }
-
-    try {
-      const updateData: any = { status };
-      if (imageUrls) {
-        updateData.image_urls = imageUrls;
-      }
-
-      const { error } = await supabase
-        .from('outfits')
-        .update(updateData)
-        .eq('id', outfitId);
-
-      if (error) throw error;
-    } catch (error) {
-      console.error('Error updating outfit status:', error);
-      throw error;
-    }
-  }
 
   static async checkDailyLimit(userId: string): Promise<boolean> {
     if (!supabase) {
@@ -447,4 +452,5 @@ export class OutfitService {
   static async removeFromFavourites(userId: string, outfitKey: string): Promise<boolean> {
     return this.removeOutfitKeyFromFavourites(userId, outfitKey);
   }
+
 }

@@ -29,6 +29,8 @@ interface ActionsTabsProps {
   wardrobeSelectedItems?: {[slot: string]: string};
   onClearWardrobeChanges?: () => void;
   onInventoryUpdate?: () => void;
+  isSad?: boolean;
+  onToggleSadness?: () => void;
 }
 
 export default function ActionsTabs({ 
@@ -43,7 +45,9 @@ export default function ActionsTabs({
   onWardrobeSelectedItemsChange,
   wardrobeSelectedItems = {},
   onClearWardrobeChanges,
-  onInventoryUpdate
+  onInventoryUpdate,
+  isSad = false,
+  onToggleSadness
 }: ActionsTabsProps) {
   const [equippedItems, setEquippedItems] = useState<Array<{ item_id: string; slot: string; image_url: string; name: string }>>([]);
   const [showItemsManagement, setShowItemsManagement] = useState(false);
@@ -387,6 +391,8 @@ export default function ActionsTabs({
                   onToggleDebugMode={onToggleDebugMode}
                   personality={personality}
                   onPersonalityChange={onPersonalityChange}
+                  isSad={isSad}
+                  onToggleSadness={onToggleSadness}
                 />
               </div>
 

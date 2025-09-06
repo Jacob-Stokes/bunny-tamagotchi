@@ -1,0 +1,197 @@
+=== OUTFIT GENERATION DEBUG LOG ===
+
+[2025-09-06T00:56:29.995Z] === SAVE OUTFIT REQUEST STARTED ===
+
+[2025-09-06T00:56:29.996Z] 📥 Request received
+{
+  "bunny_id": "ee630f8d-21c5-46e1-8e4c-fafc796aad7e",
+  "outfit_name": "Cozy Red Beanie + Yellow Rain Boots + 3D Cinema Glasses + Scientist Lab Coat + Cool Leather Pants + Sparkly Magic Wand (Sep 6, 1:56 AM)",
+  "items_count": 6,
+  "items": [
+    {
+      "item_id": "red_beanie",
+      "slot": "head",
+      "image_url": "/items/red_beanie.png",
+      "name": "Cozy Red Beanie"
+    },
+    {
+      "item_id": "rain_boots",
+      "slot": "feet",
+      "image_url": "/items/rain_boots.png",
+      "name": "Yellow Rain Boots"
+    },
+    {
+      "item_id": "3d_glasses",
+      "slot": "face",
+      "image_url": "/items/3d_glasses.png",
+      "name": "3D Cinema Glasses"
+    },
+    {
+      "item_id": "lab_coat",
+      "slot": "upper_body",
+      "image_url": "/items/lab_coat.png",
+      "name": "Scientist Lab Coat"
+    },
+    {
+      "item_id": "leather_pants",
+      "slot": "lower_body",
+      "image_url": "/items/leather_pants.png",
+      "name": "Cool Leather Pants"
+    },
+    {
+      "item_id": "magic_wand",
+      "slot": "accessory",
+      "image_url": "/items/magic_wand.png",
+      "name": "Sparkly Magic Wand"
+    }
+  ]
+}
+
+[2025-09-06T00:56:30.092Z] 🎨 About to call generate-bunny-image
+{
+  "mockRequestData": {
+    "bunnyId": "ee630f8d-21c5-46e1-8e4c-fafc796aad7e",
+    "equippedItemsCount": 6,
+    "generateAnimation": false,
+    "forceRegenerate": false
+  }
+}
+
+[2025-09-06T00:56:30.102Z] 📦 generate-bunny-image imported successfully
+
+[2025-09-06T00:59:31.141Z] 🗄️ Starting database operations
+{
+  "outfitNumber": "0014",
+  "bunnyId": "ee630f8d-21c5-46e1-8e4c-fafc796aad7e"
+}
+
+[2025-09-06T00:59:31.142Z] 🔑 Checking serviceClient
+{
+  "serviceClientExists": true
+}
+
+[2025-09-06T00:59:31.389Z] 👤 Bunny lookup result
+{
+  "bunnyData": {
+    "user_id": "b93b4d62-2b5d-4825-99e4-51bb261fa152"
+  }
+}
+
+[2025-09-06T00:59:31.390Z] 📝 About to insert outfit record
+{
+  "name": "0014",
+  "user_id": "b93b4d62-2b5d-4825-99e4-51bb261fa152",
+  "bunny_id": "ee630f8d-21c5-46e1-8e4c-fafc796aad7e",
+  "base_bunny": "bunny-base.png",
+  "scene": "meadow",
+  "equipment_signature": "bunny-base.png|meadow|3d_glasses,lab_coat,leather_pants,magic_wand,rain_boots,red_beanie",
+  "serviceClientExists": true
+}
+
+[2025-09-06T00:59:31.537Z] 💾 Outfit insert result
+{
+  "outfit": {
+    "id": "cd5a27eb-e9f2-4976-ad0b-51df8a2b2fca",
+    "bunny_id": "ee630f8d-21c5-46e1-8e4c-fafc796aad7e",
+    "user_id": "b93b4d62-2b5d-4825-99e4-51bb261fa152",
+    "name": "0014",
+    "equipped_items": [
+      {
+        "name": "3D Cinema Glasses",
+        "slot": "face",
+        "item_id": "3d_glasses",
+        "image_url": "/items/3d_glasses.png"
+      },
+      {
+        "name": "Scientist Lab Coat",
+        "slot": "upper_body",
+        "item_id": "lab_coat",
+        "image_url": "/items/lab_coat.png"
+      },
+      {
+        "name": "Cool Leather Pants",
+        "slot": "lower_body",
+        "item_id": "leather_pants",
+        "image_url": "/items/leather_pants.png"
+      },
+      {
+        "name": "Sparkly Magic Wand",
+        "slot": "accessory",
+        "item_id": "magic_wand",
+        "image_url": "/items/magic_wand.png"
+      },
+      {
+        "name": "Yellow Rain Boots",
+        "slot": "feet",
+        "item_id": "rain_boots",
+        "image_url": "/items/rain_boots.png"
+      },
+      {
+        "name": "Cozy Red Beanie",
+        "slot": "head",
+        "item_id": "red_beanie",
+        "image_url": "/items/red_beanie.png"
+      }
+    ],
+    "equipment_signature": "bunny-base.png|meadow|3d_glasses,lab_coat,leather_pants,magic_wand,rain_boots,red_beanie",
+    "base_bunny": "bunny-base.png",
+    "scene": "meadow",
+    "image_urls": [
+      "/generated-bunnies/0014/0014-normal.png"
+    ],
+    "is_active": false,
+    "created_at": "2025-09-06T00:59:31.39+00:00",
+    "updated_at": "2025-09-06T00:59:31.511123+00:00",
+    "folder_number": 14,
+    "display_name": "3D Cinema Glasses + Scientist Lab Coat + Cool Leather Pants + Sparkly Magic Wand + Yellow Rain Boots + Cozy Red Beanie"
+  },
+  "outfitError": null
+}
+
+[2025-09-06T00:59:31.663Z] 🎯 generate-bunny-image response received
+{
+  "status": 200,
+  "statusText": "",
+  "ok": true
+}
+
+[2025-09-06T00:59:31.663Z] 📄 Parsed generation result
+{
+  "success": true,
+  "imageUrl": "/generated-bunnies/0014/0014-normal.png",
+  "cached": false,
+  "equippedItems": 6,
+  "method": "sequential_outfit_generation",
+  "folderName": "0014",
+  "outfitNumber": "0014",
+  "animation": {
+    "generated": [
+      "blink",
+      "smile",
+      "wave",
+      "sad-closed-eyes",
+      "sad-open-eyes"
+    ]
+  },
+  "transparent": {
+    "applied": true
+  },
+  "database": {
+    "created": true,
+    "outfitId": "cd5a27eb-e9f2-4976-ad0b-51df8a2b2fca",
+    "outfitNumber": "0014",
+    "itemCount": 6
+  }
+}
+
+[2025-09-06T00:59:31.770Z] 🔥 FATAL ERROR in save-outfit
+{
+  "error": "new row violates row-level security policy for table \"outfits\"",
+  "errorObject": {
+    "code": "42501",
+    "details": null,
+    "hint": null,
+    "message": "new row violates row-level security policy for table \"outfits\""
+  }
+}
+

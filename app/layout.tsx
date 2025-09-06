@@ -46,22 +46,6 @@ export default function RootLayout({
         <script
           dangerouslySetInnerHTML={{
             __html: `
-              if ('serviceWorker' in navigator) {
-                window.addEventListener('load', function() {
-                  navigator.serviceWorker.register('/sw.js')
-                    .then(function(registration) {
-                    })
-                    .catch(function(registrationError) {
-                    });
-                });
-              }
-              
-              // PWA debug info
-              window.addEventListener('beforeinstallprompt', (e) => {
-                e.userChoice.then((choiceResult) => {
-                });
-              });
-
               // Set CSS custom properties for viewport height
               function setViewportHeight() {
                 const vh = window.innerHeight * 0.01;

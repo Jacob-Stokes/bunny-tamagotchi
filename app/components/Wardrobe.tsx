@@ -745,10 +745,7 @@ export default function Wardrobe({ className = '', bunnyImageUrl, onSelectedItem
             {/* Outfit name and details */}
             <div className="text-center mb-4">
               <h4 className="text-purple-800 font-semibold text-lg mb-1">
-                {currentOutfit.equippedItems.length > 0 
-                  ? currentOutfit.equippedItems.join(' + ')
-                  : 'Base Bunny'
-                }
+                {currentOutfit.displayName || currentOutfit.name || 'Base Bunny'}
               </h4>
               <p className="text-purple-600 text-sm">
                 {currentOutfit.equippedItems.length} item{currentOutfit.equippedItems.length !== 1 ? 's' : ''}
@@ -1135,7 +1132,7 @@ export default function Wardrobe({ className = '', bunnyImageUrl, onSelectedItem
                         {/* Just outfit name at bottom */}
                         <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-2">
                           <div className="text-white text-xs font-medium truncate text-center">
-                            {outfit.equippedItems.length > 0 ? outfit.equippedItems.join(' + ') : 'Base Bunny'}
+                            {outfit.displayName || outfit.name || 'Base Bunny'}
                           </div>
                         </div>
                       </div>

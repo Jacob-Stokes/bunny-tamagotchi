@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY;
 
 // Debug logging
 
@@ -16,6 +17,11 @@ const isSupabaseConfigured =
 // Create a mock client if not configured, real client if configured
 export const supabase = isSupabaseConfigured 
   ? createClient(supabaseUrl!, supabaseAnonKey!)
+  : null;
+
+// Service role client for admin operations (server-side only)
+export const serviceClient = isSupabaseConfigured && supabaseServiceKey
+  ? createClient(supabaseUrl!, supabaseServiceKey!)
   : null;
 
 export { isSupabaseConfigured };
